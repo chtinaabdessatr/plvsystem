@@ -92,34 +92,72 @@ class OrderController {
     }
 
     public function view($id) {
+        // 1. Get Basic Order Details
         $order = $this->orderModel->getById($id);
-        if (!$order) {
-            header("Location: /plvsystem/dashboard");
-            exit;
-        }
+        if (!$order) { header("Location: /plvsystem/dashboard"); exit; }
 
         $files = $this->orderModel->getFiles($id);
-        $designers = $this->userModel->getDesigners();
-        $printers = $this->userModel->getPrinters();
-        $delivery = $this->userModel->getDelivery();
+        $history = $this->orderModel->getOrderHistory($id);
+
+        // 2. FETCH THE ASSIGNMENT (The "Reading" Part)
+        $assignment = [];
+
+        // CASE A: YOU ARE ADMIN OR COMMERCIAL
+        // You need to see WHOEVER is working on the current stage (Designer, Printer, etc.)
+        if ($_SESSION['role'] == 'admin' || $_SESSION['role'] == 'commercial') {
+            // We use a special method to find "The latest assignment for this stage"
+            $assignment = $this->orderModel->getAssignmentByStage($id, $order['current_stage']);
+        } 
         
-        if ($_SESSION['role'] !== 'admin') {
+        // CASE B: YOU ARE A WORKER (Designer/Printer)
+        // You only care about tasks assigned specifically to YOU
+        else {
             $assignment = $this->orderModel->getUserAssignment($id, $_SESSION['user_id']);
-        } else {
-            $assignment = $this->orderModel->getAssignment($id, $order['current_stage']);
         }
-        
+
         require 'views/orders/view.php';
     }
 
     public function assign() {
-        if ($_SESSION['role'] != 'admin') die('Unauthorized');
-        $this->orderModel->assignUser($_POST['order_id'], $_POST['user_id'], $_POST['stage']);
-        
-        // Notify the user
-        $this->notifModel->create($_POST['user_id'], "You have a new task!", "/plvsystem/order/view/".$_POST['order_id']);
-        
-        header("Location: /plvsystem/order/view/" . $_POST['order_id']);
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $order_id = $_POST['order_id'];
+            $user_id = $_POST['user_id'];
+            $current_stage = $_POST['stage'];
+
+            // --- THE FIX IS HERE ---
+            // Don't create a new User model. Use the one from the constructor.
+            // OLD: $userModel = new User($this->db); 
+            // OLD: $worker = $userModel->findById($user_id);
+            
+            // NEW:
+            $worker = $this->userModel->findById($user_id);
+            // -----------------------
+            
+            // Logic based on worker role
+            $newStage = $current_stage;
+            
+            if ($worker['role'] == 'designer') {
+                $newStage = 'design';
+            } elseif ($worker['role'] == 'printer') {
+                $newStage = 'printing';
+            } elseif ($worker['role'] == 'delivery') {
+                $newStage = 'delivery';
+            }
+
+            // Update Assignment
+            $this->orderModel->assignUser($order_id, $user_id, $newStage);
+            
+            // Update Order Stage
+            $this->orderModel->updateStage($order_id, $newStage);
+
+            // Notification
+            if(isset($this->notifModel)) {
+                $this->notifModel->create($user_id, "👉 New Task Assigned: Order #$order_id", "/plvsystem/order/view/$order_id");
+            }
+
+            header("Location: /plvsystem/dashboard");
+            exit;
+        }
     }
 
     public function updateStatus() {
@@ -157,33 +195,89 @@ class OrderController {
         header("Location: /plvsystem/order/view/" . $orderId);
     }
 
-    public function complete() {
-        $currentStage = strtolower(trim($_POST['current_stage'])); 
-        $orderId = $_POST['order_id'];
-        $assignmentId = $_POST['assignment_id'];
-
-        if ($currentStage == 'design' || $currentStage == 'created') {
-            $nextStage = 'printing';
-            $orderStatus = 'pending'; 
-        } elseif ($currentStage == 'printing') {
-            $nextStage = 'delivery';
-            $orderStatus = 'pending'; 
-        } elseif ($currentStage == 'delivery') {
-            $nextStage = 'completed';
-            $orderStatus = 'completed';
-        } else {
-            $nextStage = $currentStage; 
-            $orderStatus = 'pending';
-        }
+    // 1. WORKER ACTION: "Mark as Done" (Request Review)
+    public function requestReview() {
+        $assignment_id = $_POST['assignment_id'];
+        $order_id = $_POST['order_id'];
         
-        $this->orderModel->completeAssignment($assignmentId, $orderId, $nextStage, $orderStatus);
+        // Update assignment status to 'review'
+        $this->orderModel->setAssignmentStatus($assignment_id, 'review');
         
-        $order = $this->orderModel->getById($orderId);
-        $this->notifModel->create($order['created_by'], "✅ Stage '$currentStage' finished.", "/plvsystem/order/view/$orderId");
+        // Notify Admin
+        // Assuming Admin ID is 1 or finding admins via model. 
+        // For simplicity, let's assume we notify the creator of the order:
+        $order = $this->orderModel->getById($order_id);
+        $this->notifModel->create($order['created_by'], "⚖️ Approval Needed: Order #$order_id", "/plvsystem/order/view/$order_id");
 
-        header("Location: /plvsystem/order/view/" . $orderId);
+        header("Location: /plvsystem/order/view/" . $order_id);
+        exit;
+    }
+// --- ADMIN ACTION: REJECT / REQUEST REVISION ---
+public function rejectStage() {
+    if($_SESSION['role'] != 'admin' && $_SESSION['role'] != 'commercial') die('Unauthorized');
+
+    $assignment_id = $_POST['assignment_id'];
+    $order_id = $_POST['order_id'];
+    $worker_id = $_POST['worker_id'];
+    $remark = trim($_POST['remark']);
+
+    // 1. Handle Admin File Upload (Optional)
+    if (isset($_FILES['admin_file']) && $_FILES['admin_file']['error'] == 0) {
+        $this->uploadHelper($order_id, 'admin_file'); // Uploads the correction file
     }
 
+    // 2. Set Status to 'revision' (so the designer sees the buttons again)
+    $this->orderModel->setAssignmentStatus($assignment_id, 'revision');
+
+    // 3. Notify the Worker
+    $msg = "❌ Revision Requested: " . ($remark ?: "Please check the order details.");
+    $this->notifModel->create($worker_id, $msg, "/plvsystem/order/view/$order_id");
+
+    // 4. Log in History (Optional but good)
+    // You might want to add a method to log remarks, but for now notifications cover it.
+
+    header("Location: /plvsystem/order/view/" . $order_id);
+    exit;
+}
+
+// --- ADMIN ACTION: APPROVE ---
+public function approveStage() {
+    if($_SESSION['role'] != 'admin' && $_SESSION['role'] != 'commercial') die('Unauthorized');
+
+    $assignment_id = $_POST['assignment_id'];
+    $order_id = $_POST['order_id'];
+    $current_stage = strtolower(trim($_POST['current_stage']));
+    
+    // 1. Determine Next Stage
+    if ($current_stage == 'created' || $current_stage == 'design') {
+        $next_stage = 'printing';
+    } elseif ($current_stage == 'printing') {
+        $next_stage = 'delivery';
+    } elseif ($current_stage == 'delivery') {
+        $next_stage = 'completed';
+    } else {
+        $next_stage = $current_stage;
+    }
+
+    // 2. Upload Admin File (Optional)
+    if (!empty($_FILES['admin_file']['name'])) {
+        $this->uploadHelper($order_id, 'admin_file');
+    }
+
+    // 3. Finalize Stage
+    $this->orderModel->completeStage($assignment_id, $order_id, $current_stage, $next_stage);
+
+    // 4. Notify Worker
+    $this->notifModel->create($_POST['worker_id'], "✅ Work Approved!", "/plvsystem/order/view/$order_id");
+
+    // --- THE FIX: Add '?assign_needed=1' to the URL ---
+    if ($next_stage != 'completed') {
+        header("Location: /plvsystem/order/view/" . $order_id . "?assign_needed=1");
+    } else {
+        header("Location: /plvsystem/order/view/" . $order_id);
+    }
+    exit;
+}
     public function edit($id) {
         if ($_SESSION['role'] !== 'admin' && $_SESSION['role'] !== 'commercial') die("Access Denied");
 
@@ -207,11 +301,11 @@ class OrderController {
     }
 
     public function recent() {
-        $recentFiles = $this->orderModel->getAllRecentFiles(); // Fixed variable name
+        $files = $this->orderModel->getAllRecentFiles(); // Fixed variable name
         require 'views/orders/recent.php';
     }
 
-    
+
     // Get Data for the Assignment Popup (called via AJAX)
     public function getAssignData() {
         if ($_SESSION['role'] != 'admin') die(json_encode(['error' => 'Unauthorized']));
@@ -238,6 +332,39 @@ class OrderController {
         header('Content-Type: application/json');
         echo json_encode(['users' => $users, 'nextStage' => $nextStage]);
         exit;
+    }
+    // --- RECEIPT PAGE METHOD ---
+    public function receipt($assignmentId) {
+        // 1. Database Connection
+        $db = (new Database())->getConnection();
+        
+        // 2. Fetch Assignment + Order + Worker Details
+        $stmt = $db->prepare("
+            SELECT a.*, o.client_name, o.created_at as order_date, u.name as worker_name, u.role as worker_role
+            FROM assignments a
+            JOIN orders o ON a.order_id = o.id
+            JOIN users u ON a.user_id = u.id
+            WHERE a.id = ?
+        ");
+        $stmt->execute([$assignmentId]);
+        $data = $stmt->fetch();
+
+        // 3. Security Checks
+        if (!$data) {
+            die("Error: Receipt not found.");
+        }
+        
+        // Only allow the Worker who refused it OR an Admin
+        if ($data['user_id'] != $_SESSION['user_id'] && $_SESSION['role'] != 'admin') {
+            die("Access Denied: You do not have permission to view this receipt.");
+        }
+
+        // 4. Load the Receipt View
+        if (file_exists('views/orders/receipt.php')) {
+            require 'views/orders/receipt.php';
+        } else {
+            die("Error: The view file 'views/orders/receipt.php' is missing.");
+        }
     }
 }
 ?>

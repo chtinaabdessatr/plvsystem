@@ -99,26 +99,37 @@ class Order {
     }
 
     // 8. COMPLETE ASSIGNMENT (Move to next stage)
-    public function completeAssignment($assignmentId, $orderId, $nextStage, $orderStatus) {
+    // Renamed to match the controller
+    public function completeStage($assignment_id, $order_id, $old_stage, $new_stage) {
         try {
             $this->conn->beginTransaction();
 
-            // Mark assignment complete
-            $stmt1 = $this->conn->prepare("UPDATE assignments SET status = 'completed', completed_at = NOW() WHERE id = ?");
-            $stmt1->execute([$assignmentId]);
+            // 1. Mark Assignment as Completed
+            // We use 'end_time' because your database screenshot showed that column name
+            $sql1 = "UPDATE assignments SET status = 'completed', end_time = NOW() WHERE id = ?";
+            $stmt1 = $this->conn->prepare($sql1);
+            $stmt1->execute([$assignment_id]);
 
-            // Move Order to next stage
-            $stmt2 = $this->conn->prepare("UPDATE orders SET current_stage = ?, status = ? WHERE id = ?");
-            $stmt2->execute([$nextStage, $orderStatus, $orderId]);
+            // 2. Update Order Stage
+            // If the new stage is 'completed', set order status to 'completed'. Otherwise 'pending'.
+            $status = ($new_stage == 'completed') ? 'completed' : 'pending';
+            
+            $sql2 = "UPDATE orders SET current_stage = ?, status = ? WHERE id = ?";
+            $stmt2 = $this->conn->prepare($sql2);
+            $stmt2->execute([$new_stage, $status, $order_id]);
+
+            // 3. (HISTORY INSERT REMOVED to prevent crash)
 
             $this->conn->commit();
             return true;
+
         } catch (Exception $e) {
             $this->conn->rollBack();
+            // Uncomment to see specific errors if it fails again
+            // die($e->getMessage()); 
             return false;
         }
     }
-
     // 9. FILES (Using table 'files' not 'order_files')
     public function addFile($orderId, $userId, $path, $stage) {
         $stmt = $this->conn->prepare("INSERT INTO files (order_id, uploaded_by, file_path, stage) VALUES (?, ?, ?, ?)");
@@ -153,6 +164,17 @@ class Order {
         return $stmt->execute([$data['client'], $data['type'], $data['desc'], $data['deadline'], $data['priority'], $id]);
     }
 
+    // Add to models/Order.php
+    public function setAssignmentStatus($assignment_id, $status) {
+        $stmt = $this->conn->prepare("UPDATE assignments SET status = ? WHERE id = ?");
+        return $stmt->execute([$status, $assignment_id]);
+    }
+    
+    // Also make sure you have updateStage from previous fix
+    public function updateStage($order_id, $new_stage) {
+        $stmt = $this->conn->prepare("UPDATE orders SET current_stage = ? WHERE id = ?");
+        return $stmt->execute([$new_stage, $order_id]);
+    }
     public function getUserPendingTasks($userId) {
         $sql = "SELECT o.*, a.id as assignment_id 
                 FROM orders o 
@@ -210,6 +232,17 @@ public function getOrdersForUser($userId) {
     $stmt = $this->conn->prepare($sql);
     $stmt->execute([$userId]);
     return $stmt->fetchAll();
+}
+public function getAssignmentByStage($order_id, $stage) {
+    $sql = "SELECT a.*, u.name as user_name, u.role as user_role 
+            FROM assignments a 
+            JOIN users u ON a.user_id = u.id 
+            WHERE a.order_id = ? AND a.stage = ? AND a.status != 'refused'
+            ORDER BY a.id DESC LIMIT 1";
+    
+    $stmt = $this->conn->prepare($sql);
+    $stmt->execute([$order_id, $stage]);
+    return $stmt->fetch(PDO::FETCH_ASSOC);
 }
 }
 ?>

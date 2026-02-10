@@ -1,90 +1,120 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify OTP - LAP PLV</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="/plvsystem/public/css/app.css">
+    
+    <style>
+        /* Reusing the Login Card styles for consistency */
+        .login-card {
+            background: white;
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            border-radius: var(--radius);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
 
-<style>
-    /* Reset basic spacing and ensure padding is included in width calculations */
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
+        .auth-icon {
+            font-size: 3rem;
+            color: var(--primary);
+            margin-bottom: 16px;
+            background: #eef2ff;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
 
-/* Body Styling: Centers the box vertically and horizontally */
-body.login-page {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #f0f2f5; /* Light grey background */
-    height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
+        .login-subtitle {
+            color: var(--text-light);
+            font-size: 0.9rem;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
 
-/* The Login Container Card */
-.login-box {
-    background-color: #ffffff;
-    padding: 40px;
-    width: 100%;
-    max-width: 400px; /* Prevents it from getting too wide on large screens */
-    border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); /* Soft shadow for depth */
-}
+        .input-group {
+            position: relative;
+            margin-bottom: 16px;
+        }
 
-/* Header Styling */
-.login-box h2 {
-    text-align: center;
-    color: #333;
-    margin-bottom: 30px;
-    font-size: 24px;
-    font-weight: 600;
-}
+        .input-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-light);
+            z-index: 2;
+        }
 
-/* Form Input Styling */
-.login-box input {
-    width: 100%;
-    padding: 12px 15px;
-    margin-bottom: 15px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    font-size: 16px;
-    transition: border-color 0.3s ease;
-}
+        .login-input {
+            padding-left: 38px !important; 
+            letter-spacing: 2px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            text-align: center;
+        }
 
-/* Input Focus Effect */
-.login-box input:focus {
-    outline: none;
-    border-color: #007bff; /* Highlights blue when clicked */
-    box-shadow: 0 0 5px rgba(0, 123, 255, 0.2);
-}
-
-/* Button Styling */
-.btn {
-    width: 100%;
-    padding: 12px;
-    background-color: #007bff; /* Primary Blue */
-    color: white;
-    border: none;
-    border-radius: 5px;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-}
-
-/* Button Hover Effect */
-.btn:hover {
-    background-color: #0056b3; /* Darker blue on hover */
-}
+        /* Special style for the Dev Code hint */
+        .dev-hint {
+            background: #fffbeb;
+            border: 1px dashed #f59e0b;
+            color: #b45309;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            margin-bottom: 20px;
+            display: inline-block;
+            width: 100%;
+        }
     </style>
 </head>
-<body class="login-page">
-    <div class="login-box">
-        <h2>Verify OTP</h2>
-        <p>Use code: <strong>123456</strong></p>
-        <form method="POST" action="/plvsystem/auth/verifyOtp">
-            <input type="text" name="otp_code" placeholder="Enter Code" required>
-            <button type="submit" class="btn">Verify</button>
-        </form>
+<body>
+
+    <div class="auth-layout">
+        
+        <div class="login-card">
+            
+            <div class="auth-icon">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+
+            <h2 style="margin: 0 0 8px 0; color: var(--text-dark);">Security Check</h2>
+            <p class="login-subtitle">Please enter the verification code sent to your device.</p>
+
+            <div class="dev-hint">
+                <i class="fa-solid fa-bug"></i> Demo Mode: Use code <strong>123456</strong>
+            </div>
+
+            <form method="POST" action="/plvsystem/auth/verifyOtp">
+                
+                <div class="input-group">
+                    <i class="fa-solid fa-key input-icon"></i>
+                    <input type="text" name="otp_code" class="form-control login-input" placeholder="000000" maxlength="6" required autofocus autocomplete="off">
+                </div>
+
+                <button type="submit" class="btn btn--primary btn--block btn--lg">
+                    Verify Identity <i class="fa-solid fa-arrow-right" style="margin-left:8px;"></i>
+                </button>
+
+            </form>
+
+            <div style="margin-top: 20px;">
+                <a href="/plvsystem/auth/login" class="btn btn--sm btn--neutral" style="text-decoration: none;">
+                    <i class="fa-solid fa-arrow-left"></i> Back to Login
+                </a>
+            </div>
+
+        </div>
     </div>
+
 </body>
 </html>

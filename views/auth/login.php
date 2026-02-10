@@ -1,89 +1,98 @@
 <!DOCTYPE html>
-<html>
-<head><link rel="stylesheet" href="/plvsystem/public/css/style.css">
-<style>
-    /* Reset basic spacing and ensure padding is included in width calculations */
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - LAP PLV System</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="/plvsystem/public/css/app.css">
+    
+    <style>
+        /* Special overrides just for the login card */
+        .login-card {
+            background: white;
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            border-radius: var(--radius);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        
+        .brand-logo {
+            font-size: 2rem;
+            color: var(--primary);
+            font-weight: 800;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
 
-/* Body Styling: Centers the box vertically and horizontally */
-body.login-page {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #f0f2f5; /* Light grey background */
-    height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
+        .login-subtitle {
+            color: var(--text-light);
+            font-size: 0.9rem;
+            margin-bottom: 30px;
+        }
 
-/* The Login Container Card */
-.login-box {
-    background-color: #ffffff;
-    padding: 40px;
-    width: 100%;
-    max-width: 400px; /* Prevents it from getting too wide on large screens */
-    border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); /* Soft shadow for depth */
-}
+        .input-group {
+            position: relative;
+            margin-bottom: 16px;
+        }
 
-/* Header Styling */
-.login-box h2 {
-    text-align: center;
-    color: #333;
-    margin-bottom: 30px;
-    font-size: 24px;
-    font-weight: 600;
-}
+        .input-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-light);
+            z-index: 2;
+        }
 
-/* Form Input Styling */
-.login-box input {
-    width: 100%;
-    padding: 12px 15px;
-    margin-bottom: 15px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    font-size: 16px;
-    transition: border-color 0.3s ease;
-}
-
-/* Input Focus Effect */
-.login-box input:focus {
-    outline: none;
-    border-color: #007bff; /* Highlights blue when clicked */
-    box-shadow: 0 0 5px rgba(0, 123, 255, 0.2);
-}
-
-/* Button Styling */
-.btn {
-    width: 100%;
-    padding: 12px;
-    background-color: #007bff; /* Primary Blue */
-    color: white;
-    border: none;
-    border-radius: 5px;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-}
-
-/* Button Hover Effect */
-.btn:hover {
-    background-color: #0056b3; /* Darker blue on hover */
-}
+        /* Adjust input padding to make room for icon */
+        .login-input {
+            padding-left: 38px !important; 
+        }
     </style>
 </head>
-<body class="login-page">
-    <div class="login-box">
-        <h2>LAP PLV Login</h2>
-        <form method="POST" action="/plvsystem/auth/login">
-            <input type="email" name="email" placeholder="Email" required>
-            <input type="password" name="password" placeholder="Password" required>
-            <button type="submit" class="btn">Login</button>
-        </form>
+<body>
+
+    <div class="auth-layout">
+        
+        <div class="login-card">
+            
+            <div class="brand-logo">
+                <i class="fa-solid fa-layer-group"></i> LAP PLV
+            </div>
+            <p class="login-subtitle">Production Management System</p>
+
+            <form method="POST" action="/plvsystem/auth/login">
+                
+                <div class="input-group">
+                    <i class="fa-solid fa-envelope input-icon"></i>
+                    <input type="email" name="email" class="form-control login-input" placeholder="Email Address" required autofocus>
+                </div>
+
+                <div class="input-group">
+                    <i class="fa-solid fa-lock input-icon"></i>
+                    <input type="password" name="password" class="form-control login-input" placeholder="Password" required>
+                </div>
+
+                <button type="submit" class="btn btn--primary btn--block btn--lg">
+                    Login <i class="fa-solid fa-arrow-right" style="margin-left:8px;"></i>
+                </button>
+
+            </form>
+
+            <div style="margin-top: 24px; font-size: 0.8rem; color: #9ca3af;">
+                &copy; <?= date('Y') ?> Lap Production System v1.0
+            </div>
+
+        </div>
     </div>
+
 </body>
 </html>

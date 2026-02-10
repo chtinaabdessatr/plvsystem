@@ -1,221 +1,338 @@
 <?php include 'views/layouts/header.php'; ?>
 
-<?php 
-    $stageColors = [
-        'created' => '#95a5a6', 
-        'design' => '#3498db', 
-        'printing' => '#e67e22', 
-        'delivery' => '#1abc9c', 
-        'completed' => '#27ae60'
-    ];
-    $currentColor = $stageColors[$order['current_stage']] ?? '#7f8c8d';
+<?php
+// SMART PARSER FUNCTION
+function renderProDescription($text) {
+    $parts = explode('===', $text, 2); 
+    $generalDesc = trim($parts[0]);
+    
+    if(!empty($generalDesc)) {
+        echo "<div class='pro-desc__general'>
+                <div class='pro-desc__label'><i class='fa-solid fa-clipboard-list'></i> General Notes</div>
+                <div class='pro-desc__text'>".nl2br(htmlspecialchars($generalDesc))."</div>
+              </div>";
+    }
+
+    if(count($parts) > 1) {
+        $techSection = explode("\n", trim($parts[1])); 
+        $mainTitle = trim(array_shift($techSection)); 
+        
+        echo "<div class='pro-specs'>";
+        echo "<div class='pro-specs__header'><i class='fa-solid fa-layer-group'></i> $mainTitle</div>";
+        echo "<div class='pro-specs__body'>";
+
+        $techContent = implode("\n", $techSection);
+        $chunks = explode('---', $techContent);
+        
+        foreach($chunks as $chunk) {
+            $chunk = trim($chunk);
+            if(empty($chunk)) continue;
+
+            if(strpos($chunk, '[') !== false && strpos($chunk, ']') !== false) {
+                $lines = explode("\n", $chunk);
+                $panelTitle = trim(array_shift($lines));
+                $panelTitle = str_replace(['[', ']'], '', $panelTitle);
+                
+                echo "<div class='spec-card'>";
+                echo "<h4 class='spec-card__title'>$panelTitle</h4>";
+                echo "<div class='spec-card__content'>";
+                foreach($lines as $line) {
+                    if(trim($line) == '') continue;
+                    if(strpos($line, ':') !== false) {
+                        list($key, $val) = explode(':', $line, 2);
+                        echo "<div class='spec-row'><span class='spec-row__label'>".trim($key)."</span><span class='spec-row__value'>".trim($val)."</span></div>";
+                    } else {
+                        echo "<div class='spec-row spec-row--text'>".trim($line)."</div>";
+                    }
+                }
+                echo "</div></div>";
+            } else {
+                $lines = explode("\n", $chunk);
+                echo "<div class='spec-info-box'>";
+                foreach($lines as $line) {
+                    if(trim($line) == '') continue;
+                    if(strpos($line, ':') !== false) {
+                        list($key, $val) = explode(':', $line, 2);
+                        echo "<div class='spec-row'><span class='spec-row__label'>".trim($key)."</span><span class='spec-row__value'>".trim($val)."</span></div>";
+                    } else {
+                         echo "<div class='spec-row spec-row--text'>".trim($line)."</div>";
+                    }
+                }
+                echo "</div>";
+            }
+        }
+        echo "</div></div>";
+    }
+}
 ?>
 
-<div class="container">
+<?php 
+    $stageClasses = ['created'=>'status-gray', 'design'=>'status-blue', 'printing'=>'status-orange', 'delivery'=>'status-teal', 'completed'=>'status-green'];
+    $currentStatusClass = $stageClasses[$order['current_stage']] ?? 'status-default';
+?>
+
+<div class="app-container">
     
-    <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:start;">
-            <div>
-                <h1 style="margin:0; color:#2c3e50;">Order #<?= $order['id'] ?>: <?= htmlspecialchars($order['client_name']) ?></h1>
+    <div class="page-header">
+        <div class="page-header__content">
+            <h1 class="page-header__title">
+                <span class="text-muted">Order #<?= $order['id'] ?></span>
+                <?= htmlspecialchars($order['client_name']) ?>
+            </h1>
+            
+            <div class="status-bar">
+                <span class="status-text">Status: <strong><?= ucfirst($order['status']) ?></strong></span>
+                <span class="badge badge--lg <?= $currentStatusClass ?>"><?= strtoupper($order['current_stage']) ?></span>
+                <?php if($order['status'] == 'pending'): ?>
+                     <span class="status-warning"><i class="fa-solid fa-clock"></i> Awaiting Assignment</span>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <?php if($_SESSION['role'] == 'admin' || $_SESSION['role'] == 'commercial'): ?>
+            <a href="/plvsystem/order/edit/<?= $order['id'] ?>" class="btn btn--secondary btn--icon">
+                <i class="fa-solid fa-pen"></i> Edit Details
+            </a>
+        <?php endif; ?>
+    </div>
+    
+    <div class="content-grid">
+        
+        <div class="content-grid__main">
+            <div class="card card--padded">
+                <?php renderProDescription($order['description']); ?>
+            </div>
+
+            <div class="card card--padded margin-top-lg">
+                <div class="card__header">
+                    <h3><i class="fa-solid fa-history"></i> Production History</h3>
+                </div>
+                <div class="history-table-wrapper">
+                    <table class="table history-table">
+                        <thead>
+                            <tr><th>Date</th><th>User</th><th>Role</th><th>Stage</th><th>Status</th></tr>
+                        </thead>
+                        <tbody>
+                            <?php if(!empty($history)): foreach($history as $h): ?>
+                            <tr>
+                                <td class="text-muted"><?= date('M d, H:i', strtotime($h['created_at'])) ?></td>
+                                <td class="font-medium"><?= htmlspecialchars($h['user_name']) ?></td>
+                                <td><span class="badge badge--sm badge--neutral"><?= ucfirst($h['user_role']) ?></span></td>
+                                <td><?= ucfirst($h['stage']) ?></td>
+                                <td>
+                                    <?php if($h['status'] == 'completed'): ?> <span class="text-success"><i class="fa-solid fa-check"></i> Done</span>
+                                    <?php elseif($h['status'] == 'refused'): ?> 
+                                        <span class="text-danger"><i class="fa-solid fa-xmark"></i> Refused</span>
+                                        <div class="text-xs text-danger">"<?= htmlspecialchars($h['refusal_reason']) ?>"</div>
+                                    <?php elseif($h['status'] == 'accepted'): ?> <span class="text-primary"><i class="fa-solid fa-play"></i> Working</span>
+                                    <?php else: ?> <span class="text-warning"><i class="fa-solid fa-hourglass"></i> Pending</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <?php endforeach; endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-grid__sidebar">
+            <div class="card">
+                <div class="card__header"><h3>Current Action</h3></div>
                 
-                <div style="margin-top:10px;">
-                    <span class="badge" style="background:<?= $currentColor ?>; color:white; font-size:14px; padding:6px 12px;">
-                        <?= strtoupper($order['current_stage']) ?>
-                    </span>
-                    <span style="color:#7f8c8d; margin-left:10px;">
-                        Status: <strong><?= ucfirst($order['status']) ?></strong>
-                    </span>
-                    <?php if($order['status'] == 'pending'): ?>
-                         <span style="color:#e67e22; font-size:13px;">(Waiting for Admin Assignment)</span>
+                <div class="card__body">
+
+    <?php if($order['current_stage'] == 'completed'): ?>
+        <div class="state-box state-box--success">
+            <div class="state-box__icon"><i class="fa-solid fa-circle-check"></i></div>
+            <h3>Production Complete</h3>
+            <p>This order has been delivered successfully.</p>
+        </div>
+
+    <?php elseif($_SESSION['role'] == 'admin' && $order['status'] == 'pending'): ?>
+        <div class="state-box state-box--warning">
+            <h4><i class="fa-solid fa-triangle-exclamation"></i> Action Needed</h4>
+            <p>Order is in <strong><?= strtoupper($order['current_stage']) ?></strong> stage.</p>
+            <button onclick="openAssignModal(<?= $order['id'] ?>, '<?= $order['current_stage'] ?>')" class="btn btn--warning btn--block">
+                <i class="fa-solid fa-user-plus"></i> Assign User
+            </button>
+        </div>
+
+    <?php elseif(($_SESSION['role'] == 'admin' || $_SESSION['role'] == 'commercial') && !empty($assignment) && $assignment['status'] == 'pending'): ?>
+        <div class="state-box state-box--neutral">
+            <div class="state-box__icon"><i class="fa-solid fa-hourglass-start"></i></div>
+            <h3>Waiting for Acceptance</h3>
+            <p>Task assigned to <strong><?= htmlspecialchars($assignment['user_name']) ?></strong>.</p>
+            <p class="text-xs text-muted">They need to log in and accept the task.</p>
+        </div>
+
+    <?php elseif(($_SESSION['role'] == 'admin' || $_SESSION['role'] == 'commercial') && !empty($assignment) && $assignment['status'] == 'review'): ?>
+        <div class="state-box state-box--info" style="border-left: 4px solid var(--primary);">
+            <h4 style="margin-top:0;"><i class="fa-solid fa-glasses"></i> Approval Needed</h4>
+            <p><strong><?= htmlspecialchars($assignment['user_name']) ?></strong> has finished this stage.</p>
+            
+            <form id="adminReviewForm" method="POST" enctype="multipart/form-data" style="margin-top:15px;">
+                <input type="hidden" name="assignment_id" value="<?= $assignment['id'] ?>">
+                <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+                <input type="hidden" name="current_stage" value="<?= $order['current_stage'] ?>">
+                <input type="hidden" name="worker_id" value="<?= $assignment['user_id'] ?>">
+                
+                <textarea name="remark" class="form-control" rows="2" placeholder="Add remarks..." style="margin-bottom:10px; font-size:13px;"></textarea>
+                <div style="margin-bottom:10px;">
+                    <label style="font-size:11px; font-weight:bold;">Attach Correction (Optional):</label>
+                    <input type="file" name="admin_file" class="form-control" style="font-size:12px;">
+                </div>
+            </form>
+
+            <div class="btn-group">
+                <button type="submit" form="adminReviewForm" formaction="/plvsystem/order/rejectStage" class="btn btn--danger flex-grow"><i class="fa-solid fa-xmark"></i> Reject</button>
+                <button type="submit" form="adminReviewForm" formaction="/plvsystem/order/approveStage" class="btn btn--success flex-grow"><i class="fa-solid fa-check"></i> Approve</button>
+            </div>
+        </div>
+
+    <?php elseif(!empty($assignment) && $assignment['user_id'] == $_SESSION['user_id'] && $assignment['status'] == 'refused'): ?>
+        <div class="state-box" style="background: #fef2f2; border: 1px solid #fee2e2; color: #991b1b;">
+            <div class="state-box__icon" style="background: #fee2e2; color: #dc2626;"><i class="fa-solid fa-ban"></i></div>
+            <h3>Task Refused</h3>
+            <a href="/plvsystem/order/receipt/<?= $assignment['id'] ?>" target="_blank" class="btn btn--block btn--white-outline" style="color: #dc2626; border-color: #dc2626; margin-top: 15px;">
+                <i class="fa-solid fa-print"></i> Print Receipt
+            </a>
+        </div>
+
+    <?php elseif(!empty($assignment) && $assignment['user_id'] == $_SESSION['user_id'] && $assignment['status'] == 'pending'): ?>
+        <div class="state-box state-box--info">
+            <h3>New Task Assigned!</h3>
+            <p>Please accept to start working.</p>
+            <div class="btn-group">
+                <form action="/plvsystem/order/updateStatus" method="POST" class="flex-grow">
+                    <input type="hidden" name="assignment_id" value="<?= $assignment['id'] ?>">
+                    <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+                    <button name="status" value="accepted" class="btn btn--success btn--block"><i class="fa-solid fa-check"></i> Accept</button>
+                </form>
+                <button onclick="openRefuseModal()" class="btn btn--danger flex-grow"><i class="fa-solid fa-xmark"></i> Refuse</button>
+            </div>
+        </div>
+
+    <?php elseif(!empty($assignment) && $assignment['user_id'] == $_SESSION['user_id'] && $assignment['status'] == 'revision'): ?>
+        <div class="state-box state-box--warning" style="border: 1px solid #f59e0b; background: #fffbeb;">
+            <div style="color: #b45309; font-weight:bold; margin-bottom:5px;"><i class="fa-solid fa-rotate-left"></i> Revision Requested</div>
+            <?php if(!empty($assignment['refusal_reason'])): ?>
+                <div style="background: rgba(255,255,255,0.6); padding: 8px; border-radius: 4px; border: 1px dashed #d97706; margin-bottom: 8px; font-style: italic;">"<?= nl2br(htmlspecialchars($assignment['refusal_reason'])) ?>"</div>
+            <?php endif; ?>
+            <p class="text-xs">Check comments, upload new file, and resubmit.</p>
+        </div>
+        <form action="/plvsystem/order/upload" method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+            <input type="hidden" name="stage" value="<?= $order['current_stage'] ?>">
+            <div class="file-drop-area"><input type="file" name="file" required><span class="file-msg">Upload New File...</span></div>
+            <button type="submit" class="btn btn--primary btn--sm btn--block">Upload Fix</button>
+        </form>
+        <form action="/plvsystem/order/requestReview" method="POST" style="margin-top:10px;">
+            <input type="hidden" name="assignment_id" value="<?= $assignment['id'] ?>">
+            <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+            <button class="btn btn--success btn--block"><i class="fa-solid fa-paper-plane"></i> Resubmit</button>
+        </form>
+
+    <?php elseif(!empty($assignment) && $assignment['user_id'] == $_SESSION['user_id'] && $assignment['status'] == 'accepted'): ?>
+        <div class="state-box state-box--active">
+            <strong><i class="fa-solid fa-hammer"></i> Work in Progress</strong>
+            <p class="text-xs">Upload files when ready.</p>
+        </div>
+        <form action="/plvsystem/order/upload" method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+            <input type="hidden" name="stage" value="<?= $order['current_stage'] ?>">
+            <div class="file-drop-area"><input type="file" name="file" required><span class="file-msg">Choose file...</span></div>
+            <button type="submit" class="btn btn--primary btn--sm btn--block">Upload File</button>
+        </form>
+        <form action="/plvsystem/order/requestReview" method="POST" style="margin-top:10px;">
+            <input type="hidden" name="assignment_id" value="<?= $assignment['id'] ?>">
+            <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+            <button class="btn btn--success btn--block"><i class="fa-solid fa-paper-plane"></i> Submit for Review</button>
+        </form>
+
+    <?php elseif(!empty($assignment) && $assignment['user_id'] == $_SESSION['user_id'] && $assignment['status'] == 'review'): ?>
+        <div class="state-box state-box--warning">
+            <div class="state-box__icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+            <h3>Under Review</h3>
+            <p>Waiting for Admin approval.</p>
+        </div>
+
+    <?php else: ?>
+        <div class="state-box state-box--neutral">
+            <div class="state-box__icon"><i class="fa-solid fa-hourglass-half"></i></div>
+            <p>Waiting for workflow action...</p>
+            <?php if(!empty($assignment) && is_array($assignment)): ?>
+                <small>Assigned to: <strong><?= isset($assignment['user_name']) ? $assignment['user_name'] : 'Unknown' ?></strong></small>
+                <br><small>Status: <?= $assignment['status'] ? $assignment['status'] : 'EMPTY (Error)' ?></small>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
+
+</div>
+            </div>
+
+            <div class="card margin-top-md">
+                <div class="card__header">
+                    <h3><i class="fa-solid fa-folder-open"></i> Project Files</h3>
+                </div>
+                <div class="card__body">
+                    <?php if(empty($files)): ?>
+                        <p class="text-muted text-italic">No files uploaded yet.</p>
+                    <?php else: ?>
+                        <ul class="file-list">
+                            <?php foreach($files as $f): ?>
+                            <li class="file-item">
+                                <div class="file-item__icon"><i class="fa-solid fa-file-pdf"></i></div>
+                                <div class="file-item__details">
+                                    <a href="/plvsystem/<?= $f['file_path'] ?>" target="_blank" class="file-link">Download File</a>
+                                    <div class="file-meta"><?= ucfirst($f['stage']) ?> • <?= $f['uploader'] ?></div>
+                                </div>
+                            </li>
+                            <?php endforeach; ?>
+                        </ul>
                     <?php endif; ?>
                 </div>
             </div>
 
-            <?php if($_SESSION['role'] == 'admin' || $_SESSION['role'] == 'commercial'): ?>
-                <a href="/plvsystem/order/edit/<?= $order['id'] ?>" class="btn-sm" style="background:#f39c12; color:white;">✏️ Edit Details</a>
-            <?php endif; ?>
-        </div>
-        
-        <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
-        
-        <div style="background:#f8f9fa; padding:15px; border-radius:6px; border-left:4px solid <?= $currentColor ?>;">
-            <strong style="display:block; margin-bottom:5px; color:#555;">📋 Requirements:</strong>
-            <div style="white-space: pre-wrap; font-family:inherit; color:#333;"><?= htmlspecialchars($order['description']) ?></div>
         </div>
     </div>
-
-    <div class="grid-2-col">
-        
-        <div class="card">
-            <h3 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:10px;">Current Action</h3>
-
-            <?php if($order['current_stage'] == 'completed'): ?>
-                <div style="text-align:center; padding:30px; background:#eafaf1; border-radius:8px;">
-                    <div style="font-size:40px;">🎉</div>
-                    <h3 style="color:#27ae60; margin:10px 0;">Production Complete</h3>
-                    <p style="color:#219150; margin:0;">This order has been delivered successfully.</p>
-                </div>
-
-            <?php elseif($_SESSION['role'] == 'admin' && $order['status'] == 'pending'): ?>
-                <div style="background:#fff3cd; padding:15px; border-radius:6px; border-left:4px solid #f1c40f;">
-                    <h4 style="margin:0 0 10px 0; color:#856404;">⚠️ Action Needed: Assign Task</h4>
-                    <p style="font-size:13px; margin-bottom:15px;">
-                        The order is in the <strong><?= strtoupper($order['current_stage']) ?></strong> stage. 
-                        Please select a worker to proceed.
-                    </p>
-                    
-                    <button onclick="openAssignModal(<?= $order['id'] ?>, '<?= $order['current_stage'] ?>')" class="btn" style="width:100%; background:#f39c12;">
-                        👤 Assign to <?= ucfirst($order['current_stage'] == 'created' ? 'Designer' : $order['current_stage']) ?>
-                    </button>
-                </div>
-
-            <?php elseif($assignment && $assignment['user_id'] == $_SESSION['user_id'] && $assignment['status'] == 'pending'): ?>
-                <div style="background:#ebf5fb; padding:20px; border-radius:8px; text-align:center;">
-                    <h3 style="margin-top:0; color:#2980b9;">New Task Assigned!</h3>
-                    <p>Please accept to start working or refuse if unavailable.</p>
-                    
-                    <div style="display:flex; gap:10px; margin-top:20px;">
-                        <form action="/plvsystem/order/updateStatus" method="POST" style="flex:1;">
-                            <input type="hidden" name="assignment_id" value="<?= $assignment['id'] ?>">
-                            <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
-                            <button name="status" value="accepted" class="btn" style="width:100%; background:#27ae60;">✅ Accept</button>
-                        </form>
-                        
-                        <button onclick="openRefuseModal()" class="btn" style="flex:1; background:#c0392b;">❌ Refuse</button>
-                    </div>
-                </div>
-
-            <?php elseif($assignment && $assignment['user_id'] == $_SESSION['user_id'] && $assignment['status'] == 'accepted'): ?>
-                <div style="background:#f4f6f7; padding:15px; border-radius:6px; margin-bottom:20px;">
-                    <strong style="color:#2c3e50;">🔨 Work in Progress</strong>
-                    <p style="font-size:12px; margin:5px 0 0;">Upload your files below when ready.</p>
-                </div>
-
-                <form action="/plvsystem/order/upload" method="POST" enctype="multipart/form-data">
-                    <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
-                    <input type="hidden" name="stage" value="<?= $order['current_stage'] ?>">
-                    
-                    <div class="file-upload-box" style="padding:15px; margin-bottom:10px;">
-                        <input type="file" name="file" required>
-                    </div>
-                    <button type="submit" class="btn-sm" style="width:100%;">Upload File</button>
-                </form>
-                
-                <hr style="margin:20px 0; border-top:1px dashed #ccc;">
-                
-                <form action="/plvsystem/order/complete" method="POST">
-                    <input type="hidden" name="assignment_id" value="<?= $assignment['id'] ?>">
-                    <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
-                    <input type="hidden" name="current_stage" value="<?= $order['current_stage'] ?>">
-                    <button class="btn" style="width:100%; background:#27ae60; padding:12px;">🚀 Mark Stage Complete</button>
-                </form>
-
-            <?php else: ?>
-                <div style="text-align:center; color:#95a5a6; padding:30px;">
-                    <div style="font-size:30px; margin-bottom:10px;">⏳</div>
-                    <p>Waiting for workflow action...</p>
-                    <?php if($assignment): ?>
-                        <small>Currently assigned to: <strong><?= $assignment['user_name'] ?></strong></small>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
-        </div>
-
-        <div class="card">
-            <h3 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:10px;">Project Files</h3>
-            <?php if(empty($files)): ?>
-                <p style="color:#999; font-style:italic;">No files uploaded yet.</p>
-            <?php else: ?>
-                <ul style="list-style:none; padding:0;">
-                    <?php foreach($files as $f): ?>
-                    <li style="margin-bottom:12px; display:flex; gap:10px; align-items:center;">
-                        <div style="width:36px; height:36px; background:#ecf0f1; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:18px;">📄</div>
-                        <div style="flex:1;">
-                            <a href="/plvsystem/<?= $f['file_path'] ?>" target="_blank" style="font-weight:600; color:#3498db; text-decoration:none;">Download File</a>
-                            <div style="font-size:11px; color:#7f8c8d;">
-                                <?= ucfirst($f['stage']) ?> • By <?= $f['uploader'] ?>
-                            </div>
-                        </div>
-                    </li>
-                    <?php endforeach; ?>
-                </ul>
-            <?php endif; ?>
-        </div>
-    </div>
-
-    <div class="card" style="margin-top:20px;">
-        <h3 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:10px;">🔄 Production History</h3>
-        <table style="width:100%; border-collapse:collapse; font-size:13px;">
-            <thead style="background:#f9f9f9;">
-                <tr>
-                    <th style="padding:10px; text-align:left;">Date/Time</th>
-                    <th style="padding:10px; text-align:left;">User</th>
-                    <th style="padding:10px; text-align:left;">Role</th>
-                    <th style="padding:10px; text-align:left;">Action/Stage</th>
-                    <th style="padding:10px; text-align:left;">Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if(!empty($history)): foreach($history as $h): ?>
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:10px; color:#666;"><?= date('M d, H:i', strtotime($h['created_at'])) ?></td>
-                    <td style="padding:10px;"><strong><?= htmlspecialchars($h['user_name']) ?></strong></td>
-                    <td style="padding:10px;"><span class="badge" style="background:#eee; color:#555;"><?= ucfirst($h['user_role']) ?></span></td>
-                    <td style="padding:10px;"><?= ucfirst($h['stage']) ?></td>
-                    <td style="padding:10px;">
-                        <?php if($h['status'] == 'completed'): ?>
-                            <span style="color:#27ae60; font-weight:bold;">✅ Done</span>
-                        <?php elseif($h['status'] == 'refused'): ?>
-                            <span style="color:#c0392b; font-weight:bold;">❌ Refused</span>
-                            <div style="font-size:11px; color:#c0392b; margin-top:2px;">"<?= htmlspecialchars($h['refusal_reason']) ?>"</div>
-                        <?php elseif($h['status'] == 'accepted'): ?>
-                            <span style="color:#2980b9;">▶️ Working</span>
-                        <?php else: ?>
-                            <span style="color:#f39c12;">⏳ Pending</span>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-                <?php endforeach; endif; ?>
-            </tbody>
-        </table>
-    </div>
-
 </div>
 
-<div id="refuseModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000;">
-    <div style="background:white; width:400px; margin:100px auto; padding:25px; border-radius:8px; box-shadow:0 5px 20px rgba(0,0,0,0.2);">
-        <h3 style="margin-top:0; color:#c0392b;">Refuse Assignment</h3>
-        <p style="font-size:14px; color:#555;">Please provide a reason for refusing this task. It will be sent to the Admin.</p>
-        
+<div id="refuseModal" class="modal">
+    <div class="modal__content">
+        <div class="modal__header">
+            <h3 class="text-danger">Refuse Assignment</h3>
+        </div>
         <form action="/plvsystem/order/updateStatus" method="POST">
             <input type="hidden" name="assignment_id" value="<?= isset($assignment['id']) ? $assignment['id'] : '' ?>">
             <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
             <input type="hidden" name="status" value="refused">
-            
-            <textarea name="refusal_reason" rows="3" placeholder="Reason (e.g., Too busy, Not my skill...)" required style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; margin-bottom:15px;"></textarea>
-            
-            <div style="text-align:right; display:flex; gap:10px;">
-                <button type="button" onclick="document.getElementById('refuseModal').style.display='none'" class="btn" style="background:#ccc; color:#333;">Cancel</button>
-                <button type="submit" class="btn" style="background:#c0392b;">Confirm Refusal</button>
+            <p class="modal__desc">Please provide a reason for refusing this task.</p>
+            <textarea name="refusal_reason" rows="3" class="form-control" placeholder="Reason..." required></textarea>
+            <div class="modal__actions">
+                <button type="button" onclick="document.getElementById('refuseModal').classList.remove('active')" class="btn btn--neutral">Cancel</button>
+                <button type="submit" class="btn btn--danger">Confirm</button>
             </div>
         </form>
     </div>
 </div>
 
-<div id="assignModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;">
-    <div style="background:white; width:400px; margin:100px auto; padding:25px; border-radius:8px;">
-        <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
-            <h3 style="margin:0;">Assign Task</h3>
-            <span onclick="document.getElementById('assignModal').style.display='none'" style="cursor:pointer; font-size:24px;">&times;</span>
+<div id="assignModal" class="modal">
+    <div class="modal__content">
+        <div class="modal__header">
+            <h3>Assign Task</h3>
+            <span onclick="document.getElementById('assignModal').classList.remove('active')" class="modal__close">&times;</span>
         </div>
         <form action="/plvsystem/order/assign" method="POST">
             <input type="hidden" name="order_id" id="modalOrderId">
             <input type="hidden" name="stage" id="modalStage">
-            <label style="display:block; margin-bottom:8px;">Select User:</label>
-            <select name="user_id" id="modalUserSelect" style="width:100%; padding:10px; margin-bottom:20px;" required></select>
-            <div style="text-align:right;">
-                <button type="button" onclick="document.getElementById('assignModal').style.display='none'" class="btn" style="background:#ccc;">Cancel</button>
-                <button type="submit" class="btn">Confirm</button>
+            <div class="form-group">
+                <label>Select User:</label>
+                <select name="user_id" id="modalUserSelect" class="form-control" required></select>
+            </div>
+            <div class="modal__actions">
+                <button type="button" onclick="document.getElementById('assignModal').classList.remove('active')" class="btn btn--neutral">Cancel</button>
+                <button type="submit" class="btn btn--primary">Confirm</button>
             </div>
         </form>
     </div>
@@ -223,24 +340,28 @@
 
 <script>
 function openRefuseModal() {
-    document.getElementById('refuseModal').style.display = 'block';
+    document.getElementById('refuseModal').classList.add('active');
 }
 
 function openAssignModal(orderId, currentStage) {
-    document.getElementById('modalOrderId').value = orderId;
-    document.getElementById('assignModal').style.display = 'block';
+    const modal = document.getElementById('assignModal');
+    modal.classList.add('active');
     
+    document.getElementById('modalOrderId').value = orderId;
     let select = document.getElementById('modalUserSelect');
-    select.innerHTML = '<option disabled selected>Loading...</option>';
+    select.innerHTML = '<option disabled selected>Loading users...</option>';
     
     let fetchStage = currentStage === 'created' ? 'design' : currentStage;
-    
+
     fetch('/plvsystem/order/getAssignData?current_stage=' + fetchStage)
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) { throw new Error("Network response was not ok"); }
+            return response.json();
+        })
         .then(data => {
             select.innerHTML = '';
-            if (data.users.length === 0) {
-                select.innerHTML = '<option disabled>No users found</option>';
+            if (!data.users || data.users.length === 0) {
+                select.innerHTML = '<option disabled>No users found for this role</option>';
             } else {
                 data.users.forEach(user => {
                     let option = document.createElement('option');
@@ -250,8 +371,26 @@ function openAssignModal(orderId, currentStage) {
                 });
             }
             document.getElementById('modalStage').value = data.nextStage;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            select.innerHTML = '<option disabled>Error loading users</option>';
         });
 }
+
+// --- AUTO-OPEN ASSIGN MODAL (Add this to make the popup work!) ---
+document.addEventListener("DOMContentLoaded", function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('assign_needed')) {
+        // Automatically open the modal for the CURRENT stage
+        // We ensure orderId is valid
+        <?php if(isset($order['id']) && isset($order['current_stage'])): ?>
+            openAssignModal(<?= $order['id'] ?>, '<?= $order['current_stage'] ?>');
+            // Clean URL
+            window.history.replaceState(null, null, window.location.pathname);
+        <?php endif; ?>
+    }
+});
 </script>
 
 <?php include 'views/layouts/footer.php'; ?>
