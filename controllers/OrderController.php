@@ -24,9 +24,12 @@ class OrderController {
             
             // 2. IF PANNEAU: Format the 6 Panels Logic
             if ($_POST['plv_type'] == 'Panneau') {
-                $desc .= "\n\n=== 🏗️ DÉTAILS PANNEAUX PRÉSENTOIRS ===";
-                $desc .= "\n🏷️ Nom affiché: " . $_POST['display_name'];
-                $desc .= "\n🖼️ Logo: " . $_POST['has_logo'];
+                // Keep '===' because your View parser needs it to separate the General Notes
+                $desc .= "\n\n=== SPÉCIFICATIONS TECHNIQUES ===";
+                
+                // Clean standard text (No emojis)
+                $desc .= "\nNom du projet : " . $_POST['display_name'];
+                $desc .= "\nInclusion Logo : " . $_POST['has_logo'];
                 
                 for ($i = 1; $i <= 6; $i++) {
                     $w = $_POST["p{$i}_w"] ?? '';
@@ -34,10 +37,13 @@ class OrderController {
                     $content = $_POST["p{$i}_content"] ?? [];
                     
                     if (!empty($w) || !empty($content)) {
-                        $desc .= "\n\n--- [ PANNEAU #$i ] ---";
-                        if($w && $h) $desc .= "\n📏 Taille: {$w}cm (H) x {$h}cm (V)";
+                        // Keep '---' and '[]' because your View parser uses them to create cards
+                        $desc .= "\n\n--- [ Panneau #$i ] ---";
+                        
+                        if($w && $h) $desc .= "\nDimensions : {$w}cm (L) x {$h}cm (H)";
+                        
                         if (!empty($content)) {
-                            $desc .= "\n📦 Contenu: " . implode(', ', $content);
+                            $desc .= "\nÉléments : " . implode(', ', $content);
                             if(in_array('Other', $content) && !empty($_POST["p{$i}_other"])) {
                                 $desc .= " (" . $_POST["p{$i}_other"] . ")";
                             }
@@ -61,11 +67,14 @@ class OrderController {
             // 4. Save to DB
             $newOrderId = $this->orderModel->create($data);
             
-            // 5. Upload Files (This was crashing because uploadHelper was missing)
+            // 5. Upload Files
             if ($newOrderId) {
-                $this->uploadHelper($newOrderId, 'ref_file_manuscript');
-                $this->uploadHelper($newOrderId, 'ref_file_facade');
-                $this->uploadHelper($newOrderId, 'ref_file_logo'); 
+                // Check if file helpers exist before calling
+                if(method_exists($this, 'uploadHelper')) {
+                    $this->uploadHelper($newOrderId, 'ref_file_manuscript');
+                    $this->uploadHelper($newOrderId, 'ref_file_facade');
+                    $this->uploadHelper($newOrderId, 'ref_file_logo'); 
+                }
                 
                 header("Location: /plvsystem/dashboard");
                 exit;
