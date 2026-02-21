@@ -99,7 +99,6 @@ class OrderController {
             }
         }
     }
-
     public function view($id) {
         // 1. Get Basic Order Details
         $order = $this->orderModel->getById($id);
@@ -107,6 +106,9 @@ class OrderController {
 
         $files = $this->orderModel->getFiles($id);
         $history = $this->orderModel->getOrderHistory($id);
+        
+        // 💬 ADD THIS NEW LINE FOR THE CHAT SYSTEM:
+        $chatMessages = $this->orderModel->getChatMessages($id);
 
         // 2. FETCH THE ASSIGNMENT (The "Reading" Part)
         $assignment = [];
@@ -373,6 +375,72 @@ public function approveStage() {
             require 'views/orders/receipt.php';
         } else {
             die("Error: The view file 'views/orders/receipt.php' is missing.");
+        }
+    }
+    // --- CHAT SYSTEM: HANDLE SUBMISSION & NOTIFICATIONS ---
+    public function addMessage() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $orderId = $_POST['order_id'];
+            $userId = $_SESSION['user_id'];
+            $message = trim($_POST['message']);
+            $filePath = null;
+
+            // 1. Handle File Upload if a file was attached
+            if (isset($_FILES['chat_file']) && $_FILES['chat_file']['error'] == 0) {
+                $uploadDir = 'public/uploads/chat/';
+                // Create folder if it doesn't exist
+                if (!file_exists($uploadDir)) mkdir($uploadDir, 0777, true);
+                
+                // Create a clean file name to prevent errors
+                $fileName = time() . '_chat_' . preg_replace("/[^a-zA-Z0-9.]/", "", basename($_FILES['chat_file']['name']));
+                $targetPath = $uploadDir . $fileName;
+                
+                if (move_uploaded_file($_FILES['chat_file']['tmp_name'], $targetPath)) {
+                    $filePath = $targetPath;
+                }
+            }
+
+            // 2. Save Message to DB (Only if there is text OR a file)
+            if (!empty($message) || $filePath !== null) {
+                $this->orderModel->addChatMessage($orderId, $userId, $message, $filePath);
+                
+                // ==========================================
+                // 3. SMART NOTIFICATION LOGIC
+                // ==========================================
+                $order = $this->orderModel->getById($orderId);
+                
+                // Get the worker currently assigned to this order's stage
+                $assignment = $this->orderModel->getAssignmentByStage($orderId, $order['current_stage']);
+                
+                $usersToNotify = [];
+                
+                // A. Add the Order Creator (Commercial/Admin) to the notification list
+                if (!empty($order['created_by'])) {
+                    $usersToNotify[] = $order['created_by'];
+                }
+                
+                // B. Add the Current Assigned Worker to the notification list
+                if (!empty($assignment) && !empty($assignment['user_id'])) {
+                    $usersToNotify[] = $assignment['user_id'];
+                }
+                
+                // C. Clean up the list: Remove duplicates and REMOVE THE SENDER
+                $usersToNotify = array_unique($usersToNotify);
+                $usersToNotify = array_diff($usersToNotify, [$userId]); // Don't notify yourself
+                
+                // D. Send the notifications
+                $senderName = $_SESSION['name'];
+                $notifMsg = "💬 New message from $senderName on Order #$orderId";
+                $notifLink = "/plvsystem/order/view/$orderId";
+                
+                foreach ($usersToNotify as $notifyId) {
+                    $this->notifModel->create($notifyId, $notifMsg, $notifLink);
+                }
+            }
+
+            // 4. Redirect back to the order page
+            header("Location: /plvsystem/order/view/" . $orderId);
+            exit;
         }
     }
 }

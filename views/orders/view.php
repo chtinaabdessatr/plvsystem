@@ -293,6 +293,78 @@ function renderProDescription($text) {
                     <?php endif; ?>
                 </div>
             </div>
+            <div class="card" style="display:flex; flex-direction:column; height:500px; padding:0; overflow:hidden;">
+            <div style="background:#f8fafc; padding:15px; border-bottom:1px solid var(--border); font-weight:600; color:var(--dark);">
+                <i class="fa-regular fa-comments"></i> Project Discussion
+            </div>
+            
+            <div style="flex:1; padding:20px; overflow-y:auto; background:#fefefe; display:flex; flex-direction:column; gap:15px;" id="chatBox">
+                <?php if(empty($chatMessages)): ?>
+                    <div style="text-align:center; color:var(--secondary); margin-top:50px;">
+                        <i class="fa-regular fa-message" style="font-size:30px; margin-bottom:10px;"></i>
+                        <p>No messages yet. Start the conversation!</p>
+                    </div>
+                <?php else: ?>
+                    <?php foreach($chatMessages as $msg): 
+                        $isMe = ($msg['user_id'] == $_SESSION['user_id']);
+                        $align = $isMe ? 'flex-end' : 'flex-start';
+                        $bg = $isMe ? 'var(--primary)' : '#f1f5f9';
+                        $color = $isMe ? 'white' : 'var(--dark)';
+                        $radius = $isMe ? '15px 15px 0 15px' : '15px 15px 15px 0';
+                    ?>
+                        <div style="display:flex; flex-direction:column; align-items:<?= $align ?>; max-width:85%; align-self:<?= $align ?>;">
+                            <div style="font-size:11px; color:var(--secondary); margin-bottom:4px;">
+                                <strong><?= $isMe ? 'You' : htmlspecialchars($msg['user_name']) ?></strong> 
+                                <span style="font-weight:normal;">(<?= ucfirst($msg['user_role']) ?>)</span> • <?= date('H:i, M d', strtotime($msg['created_at'])) ?>
+                            </div>
+                            
+                            <div style="background:<?= $bg ?>; color:<?= $color ?>; padding:10px 15px; border-radius:<?= $radius ?>; font-size:13px; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+                                <?php if(!empty($msg['message'])): ?>
+                                    <div style="line-height:1.5; white-space:pre-wrap;"><?= htmlspecialchars($msg['message']) ?></div>
+                                <?php endif; ?>
+                                
+                                <?php if(!empty($msg['file_path'])): 
+                                    $ext = strtolower(pathinfo($msg['file_path'], PATHINFO_EXTENSION));
+                                    $isImage = in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+                                ?>
+                                    <div style="margin-top: <?= empty($msg['message']) ? '0' : '10px' ?>; border-top: <?= empty($msg['message']) ? 'none' : '1px solid rgba(255,255,255,0.2)' ?>; padding-top: <?= empty($msg['message']) ? '0' : '10px' ?>;">
+                                        <?php if($isImage): ?>
+                                            <a href="/plvsystem/<?= $msg['file_path'] ?>" target="_blank">
+                                                <img src="/plvsystem/<?= $msg['file_path'] ?>" style="max-width:100%; max-height:200px; border-radius:6px; border:2px solid rgba(0,0,0,0.1);">
+                                            </a>
+                                        <?php else: ?>
+                                            <a href="/plvsystem/<?= $msg['file_path'] ?>" target="_blank" class="btn btn-sm" style="background:rgba(0,0,0,0.1); color:<?= $color ?>; border:1px solid rgba(0,0,0,0.1); text-decoration:none;">
+                                                <i class="fa-solid fa-paperclip"></i> Download Attachment
+                                            </a>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+
+            <div style="padding:15px; background:white; border-top:1px solid var(--border);">
+                <form action="/plvsystem/order/addMessage" method="POST" enctype="multipart/form-data" style="display:flex; gap:10px; align-items:flex-end;">
+                    <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+                    
+                    <label style="cursor:pointer; padding:10px; background:var(--light); border:1px solid var(--border); border-radius:6px; color:var(--secondary); transition:0.2s;" title="Attach File/Image">
+                        <i class="fa-solid fa-paperclip"></i>
+                        <input type="file" name="chat_file" style="display:none;" onchange="document.getElementById('file-indicator').style.display='inline-block'">
+                    </label>
+
+                    <div style="flex:1; position:relative;">
+                        <textarea name="message" rows="1" placeholder="Type a message..." style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; resize:none; font-family:inherit; font-size:13px;" required oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
+                        <span id="file-indicator" style="display:none; position:absolute; right:10px; top:-10px; background:var(--success); color:white; font-size:10px; padding:2px 6px; border-radius:10px;">File Attached</span>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" style="padding:10px 20px;">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
 
         </div>
     </div>
@@ -392,5 +464,11 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 });
 </script>
-
+<script>
+    // Auto-scroll chat to bottom
+    var chatBox = document.getElementById('chatBox');
+    if(chatBox) {
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+</script>
 <?php include 'views/layouts/footer.php'; ?>
