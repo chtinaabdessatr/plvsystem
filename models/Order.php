@@ -244,5 +244,22 @@ public function getAssignmentByStage($order_id, $stage) {
     $stmt->execute([$order_id, $stage]);
     return $stmt->fetch(PDO::FETCH_ASSOC);
 }
+// --- CHAT SYSTEM: ADD MESSAGE ---
+public function addChatMessage($orderId, $userId, $message, $filePath = null) {
+    $stmt = $this->conn->prepare("INSERT INTO order_messages (order_id, user_id, message, file_path) VALUES (?, ?, ?, ?)");
+    return $stmt->execute([$orderId, $userId, $message, $filePath]);
+}
+
+// --- CHAT SYSTEM: GET MESSAGES ---
+public function getChatMessages($orderId) {
+    $sql = "SELECT m.*, u.name as user_name, u.role as user_role 
+            FROM order_messages m 
+            JOIN users u ON m.user_id = u.id 
+            WHERE m.order_id = ? 
+            ORDER BY m.created_at ASC";
+    $stmt = $this->conn->prepare($sql);
+    $stmt->execute([$orderId]);
+    return $stmt->fetchAll();
+}
 }
 ?>

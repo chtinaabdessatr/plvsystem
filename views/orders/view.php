@@ -346,20 +346,21 @@ function renderProDescription($text) {
             </div>
 
             <div style="padding:15px; background:white; border-top:1px solid var(--border);">
-                <form action="/plvsystem/order/addMessage" method="POST" enctype="multipart/form-data" style="display:flex; gap:10px; align-items:flex-end;">
+                <form id="chatForm" enctype="multipart/form-data" style="display:flex; gap:10px; align-items:flex-end;">
                     <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+                    <input type="hidden" name="ajax" value="1"> 
                     
                     <label style="cursor:pointer; padding:10px; background:var(--light); border:1px solid var(--border); border-radius:6px; color:var(--secondary); transition:0.2s;" title="Attach File/Image">
                         <i class="fa-solid fa-paperclip"></i>
-                        <input type="file" name="chat_file" style="display:none;" onchange="document.getElementById('file-indicator').style.display='inline-block'">
+                        <input type="file" name="chat_file" id="chatFileInput" style="display:none;">
                     </label>
 
                     <div style="flex:1; position:relative;">
-                        <textarea name="message" rows="1" placeholder="Type a message..." style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; resize:none; font-family:inherit; font-size:13px;" required oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
+                        <textarea id="chatInputText" name="message" rows="1" placeholder="Type a message... (Press Enter to send, Shift+Enter for new line)" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:6px; resize:none; font-family:inherit; font-size:13px;" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
                         <span id="file-indicator" style="display:none; position:absolute; right:10px; top:-10px; background:var(--success); color:white; font-size:10px; padding:2px 6px; border-radius:10px;">File Attached</span>
                     </div>
 
-                    <button type="submit" class="btn btn-primary" style="padding:10px 20px;">
+                    <button type="submit" id="chatSubmitBtn" class="btn btn-primary" style="padding:10px 20px;">
                         <i class="fa-solid fa-paper-plane"></i>
                     </button>
                 </form>
@@ -465,10 +466,107 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 </script>
 <script>
-    // Auto-scroll chat to bottom
-    var chatBox = document.getElementById('chatBox');
-    if(chatBox) {
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }
+document.addEventListener("DOMContentLoaded", function() {
+    const chatForm = document.getElementById('chatForm');
+    const chatInputText = document.getElementById('chatInputText');
+    const chatFileInput = document.getElementById('chatFileInput');
+    const fileIndicator = document.getElementById('file-indicator');
+    const chatBox = document.getElementById('chatBox');
+    const chatSubmitBtn = document.getElementById('chatSubmitBtn');
+
+    // Auto-scroll chat to bottom on page load
+    if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
+
+    // Show indicator when file is selected
+    chatFileInput.addEventListener('change', function() {
+        if (this.files.length > 0) fileIndicator.style.display = 'inline-block';
+        else fileIndicator.style.display = 'none';
+    });
+
+    // Handle "Enter" key press to send message
+    chatInputText.addEventListener('keydown', function(e) {
+        // If Enter is pressed without Shift key
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault(); // Stop it from making a new line
+            
+            // Only submit if there is text OR a file attached
+            if (this.value.trim() !== '' || chatFileInput.files.length > 0) {
+                chatForm.dispatchEvent(new Event('submit'));
+            }
+        }
+    });
+
+    // Handle the AJAX Form Submission
+    chatForm.addEventListener('submit', function(e) {
+        e.preventDefault(); // Stop page refresh
+
+        const formData = new FormData(chatForm);
+        
+        // Disable inputs while sending
+        chatInputText.disabled = true;
+        chatSubmitBtn.disabled = true;
+        chatSubmitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+        fetch('/plvsystem/order/addMessage', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // 1. Build the new message bubble HTML
+                let fileHTML = '';
+                if (data.file_path) {
+                    const ext = data.file_path.split('.').pop().toLowerCase();
+                    const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+                    const marginTop = data.message ? 'margin-top:10px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px;' : '';
+                    
+                    if (isImage) {
+                        fileHTML = `<div style="${marginTop}"><a href="/plvsystem/${data.file_path}" target="_blank"><img src="/plvsystem/${data.file_path}" style="max-width:100%; max-height:200px; border-radius:6px; border:2px solid rgba(0,0,0,0.1);"></a></div>`;
+                    } else {
+                        fileHTML = `<div style="${marginTop}"><a href="/plvsystem/${data.file_path}" target="_blank" class="btn btn-sm" style="background:rgba(0,0,0,0.1); color:white; border:1px solid rgba(0,0,0,0.1); text-decoration:none;"><i class="fa-solid fa-paperclip"></i> Download File</a></div>`;
+                    }
+                }
+
+                const msgHTML = `
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; max-width:85%; align-self:flex-end;">
+                        <div style="font-size:11px; color:var(--secondary); margin-bottom:4px;">
+                            <strong>You</strong> <span style="font-weight:normal;">(${data.user_role})</span> • ${data.created_at}
+                        </div>
+                        <div style="background:var(--primary); color:white; padding:10px 15px; border-radius:15px 15px 0 15px; font-size:13px; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+                            ${data.message ? `<div style="line-height:1.5; white-space:pre-wrap;">${data.message}</div>` : ''}
+                            ${fileHTML}
+                        </div>
+                    </div>
+                `;
+
+                // Remove the "No messages yet" placeholder if it exists
+                if (chatBox.innerHTML.includes('No messages yet')) {
+                    chatBox.innerHTML = '';
+                }
+
+                // 2. Append to chat box and scroll to bottom
+                chatBox.insertAdjacentHTML('beforeend', msgHTML);
+                chatBox.scrollTop = chatBox.scrollHeight;
+
+                // 3. Reset form
+                chatForm.reset();
+                chatInputText.style.height = ''; 
+                fileIndicator.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert("Failed to send message. Please try again.");
+        })
+        .finally(() => {
+            // Re-enable inputs
+            chatInputText.disabled = false;
+            chatSubmitBtn.disabled = false;
+            chatSubmitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+            chatInputText.focus();
+        });
+    });
+});
 </script>
 <?php include 'views/layouts/footer.php'; ?>
