@@ -71,5 +71,25 @@ class UserController {
         header("Location: /plvsystem/user/index");
         exit;
     }
+    // --- 🗑️ DELETE USER ROUTE ---
+    public function delete($id) {
+        // 1. Security Check: Only Admins can delete
+        if ($_SESSION['role'] !== 'admin') {
+            header("Location: /plvsystem/dashboard");
+            exit;
+        }
+
+        // 2. Safety Check: Don't let the Admin delete themselves!
+        if ($id == $_SESSION['user_id']) {
+            // Redirect back with an error
+            header("Location: /plvsystem/user?error=self_delete");
+            exit;
+        }
+
+        // 3. Delete and redirect with success message
+        $this->userModel->deleteUser($id);
+        header("Location: /plvsystem/user?msg=deleted");
+        exit;
+    }
 }
 ?>

@@ -57,5 +57,11 @@ class User {
     public function getDelivery() {
         return $this->conn->query("SELECT * FROM users WHERE role = 'delivery' AND is_active = 1")->fetchAll(PDO::FETCH_ASSOC);
     }
+    // --- 🗑️ DELETE USER ---
+    public function deleteUser($id) {
+        // Hard delete the user from the database
+        $stmt = $this->conn->prepare("DELETE FROM users WHERE id = ?");
+        return $stmt->execute([$id]);
+    }
 }
 ?>

@@ -1,4 +1,8 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 require_once 'models/Order.php';
 require_once 'models/User.php';
 require_once 'models/Notification.php'; // Ensure this is included
@@ -17,7 +21,7 @@ class OrderController {
     }
 
     public function create() {
-        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // 1. Start Description
             $desc = isset($_POST['description']) ? trim($_POST['description']) : '';
@@ -99,7 +103,8 @@ class OrderController {
             }
         }
     }
-    public function view($id) {
+
+public function view($id) {
         // 1. Get Basic Order Details
         $order = $this->orderModel->getById($id);
         if (!$order) { header("Location: /plvsystem/dashboard"); exit; }
@@ -114,20 +119,23 @@ class OrderController {
         $assignment = [];
 
         // CASE A: YOU ARE ADMIN OR COMMERCIAL
-        // You need to see WHOEVER is working on the current stage (Designer, Printer, etc.)
         if ($_SESSION['role'] == 'admin' || $_SESSION['role'] == 'commercial') {
-            // We use a special method to find "The latest assignment for this stage"
             $assignment = $this->orderModel->getAssignmentByStage($id, $order['current_stage']);
         } 
-        
         // CASE B: YOU ARE A WORKER (Designer/Printer)
-        // You only care about tasks assigned specifically to YOU
         else {
             $assignment = $this->orderModel->getUserAssignment($id, $_SESSION['user_id']);
         }
 
+        // 👉 THE FIX FOR THE HOURGLASS / ARRAY WARNING:
+        // If the database returns false (meaning no assignment exists), force it to be an empty array
+        if ($assignment === false) {
+            $assignment = [];
+        }
+
         require 'views/orders/view.php';
     }
+
 
     public function assign() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -135,14 +143,22 @@ class OrderController {
             $user_id = $_POST['user_id'];
             $current_stage = $_POST['stage'];
 
-            // --- THE FIX IS HERE ---
-            // Don't create a new User model. Use the one from the constructor.
-            // OLD: $userModel = new User($this->db); 
-            // OLD: $worker = $userModel->findById($user_id);
+            // --- 🔴 THE ADMIN LOCK (ANTI-OVERLAP) ---
+            // If the stage is 'created', we check the 'design' stage since that's what gets claimed
+            $checkStage = ($current_stage == 'created') ? 'design' : $current_stage;
             
-            // NEW:
+            // Look to see if someone just claimed this!
+            $existing = $this->orderModel->getAssignmentByStage($order_id, $checkStage);
+            
+            if (!empty($existing) && $existing['status'] != 'refused') {
+                // Task is already taken! Stop the assignment and redirect with an error
+                header("Location: /plvsystem/dashboard?error=already_claimed");
+                exit;
+            }
+            // ----------------------------------------
+
+            // Don't create a new User model. Use the one from the constructor.
             $worker = $this->userModel->findById($user_id);
-            // -----------------------
             
             // Logic based on worker role
             $newStage = $current_stage;
@@ -159,11 +175,17 @@ class OrderController {
             $this->orderModel->assignUser($order_id, $user_id, $newStage);
             
             // Update Order Stage
+            // We also make sure the status is active now!
             $this->orderModel->updateStage($order_id, $newStage);
+            
+            // (Optional safety: update main order status to active so it drops from available tasks)
+            $db = (new Database())->getConnection();
+            $stmt = $db->prepare("UPDATE orders SET status = 'active' WHERE id = ?");
+            $stmt->execute([$order_id]);
 
             // Notification
             if(isset($this->notifModel)) {
-                $this->notifModel->create($user_id, "👉 New Task Assigned: Order #$order_id", "/plvsystem/order/view/$order_id");
+                $this->notifModel->create($user_id, "👉 Nouvelle tâche assignée: Commande #$order_id", "/plvsystem/order/view/$order_id");
             }
 
             header("Location: /plvsystem/dashboard");
@@ -208,20 +230,46 @@ class OrderController {
 
     // 1. WORKER ACTION: "Mark as Done" (Request Review)
     public function requestReview() {
-        $assignment_id = $_POST['assignment_id'];
-        $order_id = $_POST['order_id'];
-        
-        // Update assignment status to 'review'
-        $this->orderModel->setAssignmentStatus($assignment_id, 'review');
-        
-        // Notify Admin
-        // Assuming Admin ID is 1 or finding admins via model. 
-        // For simplicity, let's assume we notify the creator of the order:
-        $order = $this->orderModel->getById($order_id);
-        $this->notifModel->create($order['created_by'], "⚖️ Approval Needed: Order #$order_id", "/plvsystem/order/view/$order_id");
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $assignment_id = $_POST['assignment_id'];
+            $order_id = $_POST['order_id'];
+            
+            // 1. Get the order to see what stage we are currently in
+            $order = $this->orderModel->getById($order_id);
+            $current_stage = $order['current_stage'];
 
-        header("Location: /plvsystem/order/view/" . $order_id);
-        exit;
+            // 2. 🤖 THE AUTOMATION BRAIN: Determine the next stage automatically
+            $nextStage = 'completed';
+            $orderStatus = 'completed'; // Default to finishing the whole order
+
+            if ($current_stage == 'created' || $current_stage == 'design') {
+                $nextStage = 'printing';
+                $orderStatus = 'active'; // Keep active so it goes to the Printer's pool
+            } elseif ($current_stage == 'printing') {
+                $nextStage = 'delivery';
+                $orderStatus = 'active'; // Keep active so it goes to the Delivery pool
+            }
+
+            // 3. Connect to Database directly for a bulletproof update
+            $db = (new Database())->getConnection();
+            
+            // A. Mark this specific worker's task as 100% DONE
+            $stmt = $db->prepare("UPDATE assignments SET status = 'completed' WHERE id = ?");
+            $stmt->execute([$assignment_id]);
+
+            // B. Move the main order to the NEXT STAGE
+            $stmt2 = $db->prepare("UPDATE orders SET current_stage = ?, status = ? WHERE id = ?");
+            $stmt2->execute([$nextStage, $orderStatus, $order_id]);
+
+            // C. Send Notification to Admin/Creator
+            if(isset($this->notifModel)) {
+                $this->notifModel->create($order['created_by'], "✅ L'étape '$current_stage' est terminée. Commande #$order_id est passée à '$nextStage'", "/plvsystem/order/view/$order_id");
+            }
+
+            // Redirect back to dashboard since their part is done!
+            header("Location: /plvsystem/dashboard");
+            exit;
+        }
     }
 // --- ADMIN ACTION: REJECT / REQUEST REVISION ---
 public function rejectStage() {
@@ -377,7 +425,6 @@ public function approveStage() {
             die("Error: The view file 'views/orders/receipt.php' is missing.");
         }
     }
-    // --- CHAT SYSTEM: HANDLE SUBMISSION & NOTIFICATIONS ---
     // --- CHAT SYSTEM: HANDLE SUBMISSION & NOTIFICATIONS (AJAX READY) ---
     public function addMessage() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -442,6 +489,93 @@ public function approveStage() {
 
             // Fallback for non-AJAX requests
             header("Location: /plvsystem/order/view/" . $orderId);
+            exit;
+        }
+    }
+public function claim() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $orderId = $_POST['order_id'];
+            $userId = $_SESSION['user_id'];
+            $role = strtolower($_SESSION['role']);
+
+            // 1. Get the current order to see where it is at
+            $order = $this->orderModel->getById($orderId);
+            $newStage = $order['current_stage'];
+
+            // 2. FORCE THE STAGE FORWARD: If a Designer claims a 'created' task, bump it to 'design'
+            if ($role === 'designer' && $order['current_stage'] === 'created') {
+                $newStage = 'design';
+            }
+
+            // 3. Try to claim the task using the newly calculated stage
+            if ($this->orderModel->claimTask($orderId, $userId, $newStage)) {
+                
+                // Send Notification
+                $workerName = $_SESSION['name'];
+                if(isset($this->notifModel)) {
+                    $this->notifModel->create($order['created_by'], "🖐️ La commande #$orderId a été récupérée par $workerName", "/plvsystem/order/view/$orderId");
+                }
+                
+                // Redirect back to view page
+                header("Location: /plvsystem/order/view/" . $orderId);
+            } else {
+                // Someone else grabbed it!
+                header("Location: /plvsystem/dashboard?error=already_claimed");
+            }
+            exit;
+        }
+    }
+    
+    // --- 🗑️ DELETE ORDER ROUTE ---
+    public function delete($id) {
+        // Security check: Only Admins can delete
+        if ($_SESSION['role'] !== 'admin') {
+            header("Location: /plvsystem/dashboard");
+            exit;
+        }
+
+        $this->orderModel->deleteOrder($id);
+        header("Location: /plvsystem/dashboard?msg=deleted");
+        exit;
+    }
+
+    // --- 📊 EXPORT REPORT ROUTE (WITH DATE RANGE) ---
+    public function export() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST' && $_SESSION['role'] == 'admin') {
+            
+            // Get dates from the modal
+            $start = $_POST['start_date'] . ' 00:00:00';
+            $end = $_POST['end_date'] . ' 23:59:59';
+            
+            $db = (new Database())->getConnection();
+            $stmt = $db->prepare("SELECT * FROM orders WHERE created_at BETWEEN ? AND ? ORDER BY created_at DESC");
+            $stmt->execute([$start, $end]);
+            $orders = $stmt->fetchAll();
+
+            // Tell browser it's a CSV download
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="LAP_Report_' . $_POST['start_date'] . '_to_' . $_POST['end_date'] . '.csv"');
+            
+            $output = fopen('php://output', 'w');
+            fputs($output, $bom =(chr(0xEF) . chr(0xBB) . chr(0xBF))); // UTF-8 BOM for Excel
+            
+            // Headers
+            fputcsv($output, ['Ref ID', 'Client', 'Commercial', 'Type', 'Priorite', 'Etape Actuelle', 'Statut', 'Date de Creation']);
+            
+            // Data
+            foreach ($orders as $o) {
+                fputcsv($output, [
+                    '#' . $o['id'],
+                    $o['client_name'],
+                    $o['commercial_name'] ?? 'N/A',
+                    $o['plv_type'],
+                    $o['priority'],
+                    strtoupper($o['current_stage']),
+                    strtoupper($o['status']),
+                    $o['created_at']
+                ]);
+            }
+            fclose($output);
             exit;
         }
     }

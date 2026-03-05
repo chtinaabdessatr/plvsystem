@@ -29,8 +29,8 @@ class Order {
         return false;
     }
 
-    public function getAll() {
-        // Fetches Order + Creator Info + Current Assignee + Role
+    public function getAll($days = 30) {
+        // Fetches Order + Creator Info + Current Assignee + Role (Last 30 Days)
         $sql = "SELECT o.*, 
                        u.name as creator_name, 
                        u.role as creator_role,
@@ -41,8 +41,32 @@ class Order {
                         ORDER BY a.id DESC LIMIT 1) as assigned_to
                 FROM orders o 
                 JOIN users u ON o.created_by = u.id 
+                WHERE o.created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
                 ORDER BY o.created_at DESC";
-        return $this->conn->query($sql)->fetchAll();
+                
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute([$days]);
+        return $stmt->fetchAll();
+    }
+
+    public function getByCommercial($userId, $days = 30) {
+        // Fetches same info, but only for this specific commercial (Last 30 Days)
+        $sql = "SELECT o.*, 
+                       u.name as creator_name, 
+                       u.role as creator_role,
+                       (SELECT assigned_user.name 
+                        FROM assignments a 
+                        JOIN users assigned_user ON a.user_id = assigned_user.id 
+                        WHERE a.order_id = o.id AND a.status IN ('pending', 'accepted')
+                        ORDER BY a.id DESC LIMIT 1) as assigned_to
+                FROM orders o 
+                JOIN users u ON o.created_by = u.id 
+                WHERE o.created_by = ? AND o.created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+                ORDER BY o.created_at DESC";
+                
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute([$userId, $days]);
+        return $stmt->fetchAll();
     }
 
     // 3. GET SINGLE ORDER
@@ -245,21 +269,108 @@ public function getAssignmentByStage($order_id, $stage) {
     return $stmt->fetch(PDO::FETCH_ASSOC);
 }
 // --- CHAT SYSTEM: ADD MESSAGE ---
-public function addChatMessage($orderId, $userId, $message, $filePath = null) {
-    $stmt = $this->conn->prepare("INSERT INTO order_messages (order_id, user_id, message, file_path) VALUES (?, ?, ?, ?)");
-    return $stmt->execute([$orderId, $userId, $message, $filePath]);
-}
+    public function addChatMessage($orderId, $userId, $message, $filePath = null) {
+        $stmt = $this->conn->prepare("INSERT INTO order_messages (order_id, user_id, message, file_path) VALUES (?, ?, ?, ?)");
+        return $stmt->execute([$orderId, $userId, $message, $filePath]);
+    }
 
-// --- CHAT SYSTEM: GET MESSAGES ---
-public function getChatMessages($orderId) {
-    $sql = "SELECT m.*, u.name as user_name, u.role as user_role 
-            FROM order_messages m 
-            JOIN users u ON m.user_id = u.id 
-            WHERE m.order_id = ? 
-            ORDER BY m.created_at ASC";
-    $stmt = $this->conn->prepare($sql);
-    $stmt->execute([$orderId]);
-    return $stmt->fetchAll();
-}
+    // --- CHAT SYSTEM: GET MESSAGES ---
+    public function getChatMessages($orderId) {
+        $sql = "SELECT m.*, u.name as user_name, u.role as user_role 
+                FROM order_messages m 
+                JOIN users u ON m.user_id = u.id 
+                WHERE m.order_id = ? 
+                ORDER BY m.created_at ASC";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute([$orderId]);
+        return $stmt->fetchAll();
+    }
+    
+// --- TASK POOL: GET AVAILABLE UNASSIGNED ORDERS ---
+    public function getAvailableOrders($role) {
+        // 1. Force lowercase to prevent 'Designer' vs 'designer' bugs
+        $role = strtolower(trim($role));
+        
+        // 2. Determine which stages this role is allowed to grab
+        $stages = "('')"; // Default empty
+        if ($role == 'designer') $stages = "('created', 'design')";
+        if ($role == 'printer') $stages = "('printing')";
+        if ($role == 'delivery') $stages = "('delivery')";
+
+        // 3. Bulletproof SQL: 
+        // - Order is in the correct stage
+        // - Order is NOT completed
+        // - Order has NO active worker (no 'pending' or 'accepted' assignments)
+        $sql = "SELECT * FROM orders 
+                WHERE current_stage IN $stages 
+                AND status != 'completed' 
+                AND NOT EXISTS (
+                    SELECT 1 FROM assignments a 
+                    WHERE a.order_id = orders.id 
+                    AND a.status IN ('pending', 'accepted')
+                )
+                ORDER BY 
+                    CASE WHEN priority = 'Urgent' THEN 1 
+                         WHEN priority = 'High' THEN 2 
+                         ELSE 3 END ASC, 
+                    created_at ASC";
+        
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+    
+    
+    // --- TASK CLAIMING (ANTI-OVERLAP LOCK) ---
+public function claimTask($orderId, $userId, $stage) {
+        try {
+            $this->conn->beginTransaction();
+            // Lock the row
+            $stmt = $this->conn->prepare("SELECT id FROM assignments WHERE order_id = ? AND stage = ? FOR UPDATE");
+            $stmt->execute([$orderId, $stage]);
+            
+            if ($stmt->rowCount() > 0) {
+                $this->conn->rollBack();
+                return false; // Someone else grabbed it!
+            }
+
+            // Assign it to this designer
+            $stmt2 = $this->conn->prepare("INSERT INTO assignments (order_id, user_id, stage, status) VALUES (?, ?, ?, 'accepted')");
+            $stmt2->execute([$orderId, $userId, $stage]);
+
+            $this->conn->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->conn->rollBack();
+            return false;
+        }
+    }
+    // --- 🗑️ DELETE ORDER ---
+    public function deleteOrder($id) {
+        // Delete the order (Assignments and files should ideally cascade or be deleted here too)
+        $stmt = $this->conn->prepare("DELETE FROM orders WHERE id = ?");
+        return $stmt->execute([$id]);
+    }
+
+    // --- 🔍 SEARCH ORDERS ---
+    public function searchOrders($keyword, $role, $userId) {
+        $q = "%" . trim($keyword) . "%";
+        
+        // Admins search everything
+        if ($role == 'admin') {
+            $stmt = $this->conn->prepare("SELECT * FROM orders WHERE id LIKE ? OR client_name LIKE ? OR status LIKE ? ORDER BY created_at DESC");
+            $stmt->execute([$q, $q, $q]);
+        } else {
+            // Workers search only their active tasks
+            $stmt = $this->conn->prepare("
+                SELECT o.* FROM orders o 
+                JOIN assignments a ON o.id = a.order_id 
+                WHERE a.user_id = ? AND (o.id LIKE ? OR o.client_name LIKE ?) 
+                ORDER BY o.created_at DESC
+            ");
+            $stmt->execute([$userId, $q, $q]);
+        }
+        return $stmt->fetchAll();
+    }
 }
 ?>
