@@ -5,23 +5,23 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 require_once 'models/User.php';
+require_once 'models/Log.php'; // 🕵️‍♂️ ENTERPRISE LOGGING ADDED
 if(!class_exists('Database')) require_once 'config/Database.php';
 
 class UserController {
     private $userModel;
+    private $logModel; // 🕵️‍♂️ Added Log property
 
     public function __construct() {
         // 2. NOW this check will work correctly because session is loaded
         if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
-            // Debugging tip: You can uncomment the line below to see if it's failing here
-            // die("Session ID: " . $_SESSION['user_id'] . " Role: " . $_SESSION['role']);
-            
             header("Location: /plvsystem/auth/login");
             exit;
         }
 
         $db = (new Database())->getConnection();
         $this->userModel = new User($db);
+        $this->logModel = new Log($db); // 🕵️‍♂️ Initialize Logger
     }
 
     public function index() {
@@ -33,6 +33,10 @@ class UserController {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
             $this->userModel->create($_POST['name'], $_POST['email'], $password, $_POST['role']);
+            
+            // 🕵️‍♂️ LOG ACTION: User Created
+            $this->logModel->logAction($_SESSION['user_id'], 'CRÉATION UTILISATEUR', "Création du compte pour: {$_POST['name']} (Rôle: {$_POST['role']})");
+
             header("Location: /plvsystem/user/index");
             exit;
         } else {
@@ -61,6 +65,9 @@ class UserController {
 
             $this->userModel->update($id, $name, $email, $role, $is_active, $password);
             
+            // 🕵️‍♂️ LOG ACTION: User Updated
+            $this->logModel->logAction($_SESSION['user_id'], 'MODIFICATION UTILISATEUR', "Mise à jour du profil de: $name (ID: $id)");
+
             header("Location: /plvsystem/user/index");
             exit;
         }
@@ -68,9 +75,14 @@ class UserController {
 
     public function toggleActive($id) {
         $this->userModel->toggleStatus($id);
+        
+        // 🕵️‍♂️ LOG ACTION: User Status Toggled
+        $this->logModel->logAction($_SESSION['user_id'], 'STATUT UTILISATEUR', "Changement d'état (Actif/Inactif) pour l'utilisateur ID: $id");
+
         header("Location: /plvsystem/user/index");
         exit;
     }
+    
     // --- 🗑️ DELETE USER ROUTE ---
     public function delete($id) {
         // 1. Security Check: Only Admins can delete
@@ -85,6 +97,9 @@ class UserController {
             header("Location: /plvsystem/user?error=self_delete");
             exit;
         }
+
+        // 🕵️‍♂️ LOG ACTION: User Deleted (Do this BEFORE deleting so we can record it)
+        $this->logModel->logAction($_SESSION['user_id'], 'SUPPRESSION UTILISATEUR', "Suppression définitive du compte utilisateur ID: $id");
 
         // 3. Delete and redirect with success message
         $this->userModel->deleteUser($id);
