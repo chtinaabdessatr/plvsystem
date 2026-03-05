@@ -1,0 +1,12 @@
+{
+    "dashboard": "Dashboard",
+    "overview": "Overview",
+    "new_order": "New Order",
+    "search": "Search (Client, ID)...",
+    "total_orders": "Total Orders",
+    "in_progress": "In Progress",
+    "completed": "Completed",
+    "available_tasks": "Available Tasks",
+    "action": "Action",
+    "logout": "Logout"
+}
