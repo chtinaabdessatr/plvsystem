@@ -1,5 +1,6 @@
 <?php
 require_once 'models/Order.php';
+require_once 'models/Log.php'; // 🕵️‍♂️ ENTERPRISE LOGGING ADDED
 
 class DashboardController {
     public function index() {
@@ -12,6 +13,7 @@ class DashboardController {
         // 2. INITIALIZE DB & MODEL
         $db = (new Database())->getConnection();
         $orderModel = new Order($db);
+        $logModel = new Log($db); // 🕵️‍♂️ Initialize Logger
         
         $role = $_SESSION['role'];
         $userId = $_SESSION['user_id'];
@@ -21,8 +23,13 @@ class DashboardController {
         
         // 3. FETCH ORDERS BASED ON ROLE & SEARCH
         if (isset($_GET['search']) && trim($_GET['search']) !== '') {
+            $searchTerm = trim($_GET['search']);
+            
             // 🔍 IF SEARCHING: Use the search model we added
-            $orders = $orderModel->searchOrders($_GET['search'], $role, $userId);
+            $orders = $orderModel->searchOrders($searchTerm, $role, $userId);
+            
+            // 🕵️‍♂️ LOG ACTION: Track Searches
+            $logModel->logAction($userId, 'RECHERCHE', "Recherche effectuée sur le tableau de bord avec le mot-clé : '$searchTerm'");
             
             // Calculate Dashboard Stats for Admin (based on search results)
             if ($role == 'admin') {
