@@ -23,7 +23,6 @@ if(isset($_SESSION['user_id'])) {
     <title>LAP PLV System</title>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
     <link rel="stylesheet" href="/plvsystem/public/css/app.css">
 </head>
 <body>
@@ -39,16 +38,18 @@ if(isset($_SESSION['user_id'])) {
             </div>
             
             <nav class="sidebar__nav">
-                <ul>
+                <ul style="display: flex; flex-direction: column; gap: 4px;">
+                    
                     <li>
                         <a href="/plvsystem/dashboard" class="<?= strpos($current_url, 'dashboard') !== false ? 'active' : '' ?>">
                             <i class="fa-solid fa-chart-pie"></i>
-                            <span>Dashboard</span>
+                            <span>Tableau de bord</span>
                         </a>
                     </li>
                     
+                    <li style="font-size: 0.75rem; text-transform: uppercase; color: #94a3b8; font-weight: 700; margin: 15px 0 5px 15px; pointer-events: none;">Production</li>
+                    
                     <?php if($_SESSION['role'] == 'admin' || $_SESSION['role'] == 'commercial'): ?>
-                    <li class="nav-divider"></li>
                     <li>
                         <a href="/plvsystem/order/create" class="<?= strpos($current_url, 'order/create') !== false ? 'active' : '' ?>">
                             <i class="fa-solid fa-circle-plus"></i>
@@ -57,19 +58,51 @@ if(isset($_SESSION['user_id'])) {
                     </li>
                     <?php endif; ?>
 
-                    <?php if($_SESSION['role'] == 'admin'): ?>
                     <li>
-                        <a href="/plvsystem/user/index" class="<?= strpos($current_url, 'user') !== false ? 'active' : '' ?>">
-                            <i class="fa-solid fa-users"></i>
+                        <a href="/plvsystem/kanban" class="<?= strpos($current_url, 'kanban') !== false ? 'active' : '' ?>">
+                            <i class="fa-solid fa-list-check"></i>
+                            <span>Vue Kanban</span>
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="/plvsystem/order/recent" class="<?= strpos($current_url, 'order/recent') !== false ? 'active' : '' ?>">
+                            <i class="fa-solid fa-folder-open"></i>
+                            <span>Fichiers récents</span>
+                        </a>
+                    </li>
+
+                    <?php if($_SESSION['role'] == 'admin'): ?>
+                    <li style="font-size: 0.75rem; text-transform: uppercase; color: #94a3b8; font-weight: 700; margin: 15px 0 5px 15px; pointer-events: none;">Administration</li>
+                    
+                    <li>
+                        <a href="/plvsystem/user" class="<?= (strpos($current_url, '/user') !== false && strpos($current_url, 'account') === false) ? 'active' : '' ?>">
+                            <i class="fa-solid fa-users-gear"></i>
                             <span>Gérer les utilisateurs</span>
                         </a>
                     </li>
+
+                    <li>
+                        <a href="/plvsystem/log" class="<?= strpos($current_url, 'log') !== false ? 'active' : '' ?>">
+                            <i class="fa-solid fa-shield-halved"></i>
+                            <span>Journal d'Audit</span>
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="/plvsystem/settings/mail" class="<?= strpos($current_url, 'settings/mail') !== false ? 'active' : '' ?>">
+                            <i class="fa-solid fa-envelope-open-text"></i>
+                            <span>Configuration Mail</span>
+                        </a>
+                    </li>
                     <?php endif; ?>
+
+                    <li style="font-size: 0.75rem; text-transform: uppercase; color: #94a3b8; font-weight: 700; margin: 15px 0 5px 15px; pointer-events: none;">Mon Espace</li>
                     
                     <li>
-                        <a href="/plvsystem/order/recent" class="<?= strpos($current_url, 'order/recent') !== false ? 'active' : '' ?>">
-                            <i class="fa-solid fa-folder-clock"></i>
-                            <span>Fichiers récents</span>
+                        <a href="/plvsystem/account" class="<?= strpos($current_url, 'account') !== false ? 'active' : '' ?>">
+                            <i class="fa-solid fa-id-badge"></i>
+                            <span>Mon Compte</span>
                         </a>
                     </li>
                 </ul>
@@ -152,27 +185,22 @@ document.addEventListener("DOMContentLoaded", function() {
     const closeBtn = document.getElementById('sidebar-close');
 
     if (toggleBtn && sidebar) {
-        // Show the toggle button only on smaller screens
         if (window.innerWidth <= 1024) {
             toggleBtn.style.display = 'inline-flex';
         }
 
-        // Open Sidebar
         toggleBtn.addEventListener('click', (e) => {
             e.stopPropagation(); 
             sidebar.classList.toggle('active');
         });
 
-        // Close Sidebar via X button
         if (closeBtn) {
             closeBtn.addEventListener('click', () => {
                 sidebar.classList.remove('active');
             });
         }
 
-        // Close sidebar when clicking outside of it on mobile
         document.addEventListener('click', (e) => {
-            // Using .contains ensures clicking the icon inside the button doesn't trigger a close
             if (sidebar.classList.contains('active') && !sidebar.contains(e.target) && !toggleBtn.contains(e.target)) {
                 sidebar.classList.remove('active');
             }
