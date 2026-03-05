@@ -1,17 +1,29 @@
 <?php
 require_once 'models/User.php';
+require_once 'models/Log.php'; // 🕵️‍♂️ ENTERPRISE LOGGING ADDED
 
 class AuthController {
+    private $logModel; // 🕵️‍♂️ Added Log property
+
+    public function __construct() {
+        // Initialize the logger for all auth actions
+        $db = (new Database())->getConnection();
+        $this->logModel = new Log($db);
+    }
+
     public function login() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $db = (new Database())->getConnection();
             $userModel = new User($db);
-            $user = $userModel->login($_POST['email']);
+            $email = trim($_POST['email']);
+            $user = $userModel->login($email);
 
             if ($user && password_verify($_POST['password'], $user['password'])) {
                 
-                // 🔴 FIX: Replace die() with a proper redirect
                 if ($user['is_active'] == 0) {
+                    // 🕵️‍♂️ LOG ACTION: Blocked deactivated account
+                    $this->logModel->logAction($user['id'], 'CONNEXION REFUSÉE', "Tentative de connexion bloquée : Compte inactif.");
+                    
                     header("Location: /plvsystem/auth/login?error=deactivated");
                     exit;
                 }
@@ -22,10 +34,14 @@ class AuthController {
                 $_SESSION['temp_otp'] = "123456"; 
                 
                 header("Location: /plvsystem/auth/otp");
-                exit; // Always add exit after a header redirect
+                exit; 
                 
             } else {
-                // 🔴 FIX: Replace echo with a proper redirect
+                // 🕵️‍♂️ LOG ACTION: Failed password or invalid email
+                // If user doesn't exist, we log 'null' for user_id but record the email they tried
+                $userId = $user ? $user['id'] : null;
+                $this->logModel->logAction($userId, 'TENTATIVE ÉCHOUÉE', "Échec d'authentification pour l'email : $email");
+                
                 header("Location: /plvsystem/auth/login?error=credentials");
                 exit;
             }
@@ -50,16 +66,28 @@ class AuthController {
             unset($_SESSION['temp_user']);
             unset($_SESSION['temp_otp']);
             
+            // 🕵️‍♂️ LOG ACTION: Successful Login
+            $this->logModel->logAction($_SESSION['user_id'], 'CONNEXION RÉUSSIE', "L'utilisateur s'est connecté au système avec succès.");
+            
             header("Location: /plvsystem/dashboard");
             exit;
         } else {
-            // 🔴 FIX: Replace echo with a redirect back to the OTP page
+            // 🕵️‍♂️ LOG ACTION: Failed OTP
+            if (isset($_SESSION['temp_user'])) {
+                $this->logModel->logAction($_SESSION['temp_user']['id'], 'ÉCHEC OTP', "Code de sécurité à 6 chiffres incorrect.");
+            }
+            
             header("Location: /plvsystem/auth/otp?error=otp");
             exit;
         }
     }
 
     public function logout() {
+        // 🕵️‍♂️ LOG ACTION: Logout (Must happen BEFORE destroying the session!)
+        if (isset($_SESSION['user_id'])) {
+            $this->logModel->logAction($_SESSION['user_id'], 'DÉCONNEXION', "L'utilisateur s'est déconnecté manuellement.");
+        }
+        
         session_destroy();
         header("Location: /plvsystem/auth/login");
         exit;
