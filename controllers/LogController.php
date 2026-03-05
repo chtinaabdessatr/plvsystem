@@ -10,12 +10,15 @@ class LogController {
             exit;
         }
 
-        // 2. Fetch the latest 200 logs
+        // 2. Catch the search word if there is one
+        $search = isset($_GET['search']) ? trim($_GET['search']) : '';
+
+        // 3. Fetch the logs
         $db = (new Database())->getConnection();
         $logModel = new Log($db);
-        $logs = $logModel->getAllLogs(200);
+        $logs = $logModel->getAllLogs(200, $search);
 
-        // 3. Load the View
+        // 4. Load the View
         require 'views/admin/logs.php';
     }
 }
