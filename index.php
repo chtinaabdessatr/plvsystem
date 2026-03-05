@@ -2,6 +2,26 @@
 session_start();
 require_once 'config/Database.php';
 
+// 🌍 MULTI-LANGUAGE ENGINE
+function __($key) {
+    static $translations = null;
+    
+    // Load the JSON file only once per page load to keep it lightning fast
+    if ($translations === null) {
+        $lang = $_SESSION['lang'] ?? 'fr'; // Default to French
+        $file = __DIR__ . "/lang/{$lang}.json";
+        
+        if (file_exists($file)) {
+            $translations = json_decode(file_get_contents($file), true);
+        } else {
+            $translations = [];
+        }
+    }
+    
+    // Return the translated word, or the original key if the translation is missing
+    return $translations[$key] ?? $key;
+}
+
 // Basic Routing Logic
 $url = isset($_GET['url']) ? rtrim($_GET['url'], '/') : 'dashboard/index';
 $urlParts = explode('/', $url);
