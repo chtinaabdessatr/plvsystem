@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verify OTP - LAP PLV</title>
+    <title>Vérifier l'OTP - LAP PLV</title>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -37,7 +37,7 @@
         .login-subtitle {
             color: var(--text-light);
             font-size: 0.9rem;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
             line-height: 1.5;
         }
 
@@ -75,6 +75,21 @@
             display: inline-block;
             width: 100%;
         }
+
+        /* Error Alert Styles */
+        .alert-error {
+            background-color: #fef2f2;
+            border: 1px solid #f87171;
+            color: #b91c1c;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
     </style>
 </head>
 <body>
@@ -87,11 +102,26 @@
                 <i class="fa-solid fa-shield-halved"></i>
             </div>
 
-            <h2 style="margin: 0 0 8px 0; color: var(--text-dark);">Security Check</h2>
-            <p class="login-subtitle">Please enter the verification code sent to your device.</p>
+            <h2 style="margin: 0 0 8px 0; color: var(--text-dark);">Contrôle de sécurité</h2>
+            <p class="login-subtitle">Veuillez saisir le code de vérification envoyé sur votre appareil.</p>
+
+            <?php if(isset($_GET['error'])): ?>
+                <div class="alert-error">
+                    <i class="fa-solid fa-triangle-exclamation" style="font-size: 16px;"></i>
+                    <div>
+                        <?php 
+                            if($_GET['error'] == 'otp') {
+                                echo "<strong>Erreur:</strong> Code OTP invalide. Veuillez réessayer.";
+                            } else {
+                                echo "<strong>Erreur:</strong> Une erreur s'est produite.";
+                            }
+                        ?>
+                    </div>
+                </div>
+            <?php endif; ?>
 
             <div class="dev-hint">
-                <i class="fa-solid fa-bug"></i> Demo Mode: Use code <strong>123456</strong>
+                <i class="fa-solid fa-bug"></i> Mode démo : utilisez le code <strong>123456</strong>
             </div>
 
             <form method="POST" action="/plvsystem/auth/verifyOtp">
@@ -102,14 +132,14 @@
                 </div>
 
                 <button type="submit" class="btn btn--primary btn--block btn--lg">
-                    Verify Identity <i class="fa-solid fa-arrow-right" style="margin-left:8px;"></i>
+                    Vérifier l'identité <i class="fa-solid fa-arrow-right" style="margin-left:8px;"></i>
                 </button>
 
             </form>
 
             <div style="margin-top: 20px;">
                 <a href="/plvsystem/auth/login" class="btn btn--sm btn--neutral" style="text-decoration: none;">
-                    <i class="fa-solid fa-arrow-left"></i> Back to Login
+                    <i class="fa-solid fa-arrow-left"></i> Retour à la connexion
                 </a>
             </div>
 

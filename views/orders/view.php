@@ -1,4 +1,16 @@
 <?php include 'views/layouts/header.php'; ?>
+<?php
+// Put this at the VERY TOP of view.php
+$canClaim = false;
+$stage = $order['current_stage'] ?? '';
+$role = strtolower($_SESSION['role'] ?? '');
+
+if (empty($assignment) && $order['status'] != 'completed') {
+    if ($role == 'designer' && ($stage == 'created' || $stage == 'design')) $canClaim = true;
+    if ($role == 'printer' && $stage == 'printing') $canClaim = true;
+    if ($role == 'delivery' && $stage == 'delivery') $canClaim = true;
+}
+?>
 
 <?php
 // SMART PARSER FUNCTION
@@ -233,21 +245,25 @@ function renderProDescription($text) {
             <button class="btn btn--success btn--block"><i class="fa-solid fa-paper-plane"></i> Resubmit</button>
         </form>
 
-    <?php elseif(!empty($assignment) && $assignment['user_id'] == $_SESSION['user_id'] && $assignment['status'] == 'accepted'): ?>
+<?php elseif(!empty($assignment) && $assignment['user_id'] == $_SESSION['user_id'] && $assignment['status'] == 'accepted'): ?>
         <div class="state-box state-box--active">
             <strong><i class="fa-solid fa-hammer"></i> Work in Progress</strong>
             <p class="text-xs">Upload files when ready.</p>
         </div>
+        
         <form action="/plvsystem/order/upload" method="POST" enctype="multipart/form-data">
             <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
             <input type="hidden" name="stage" value="<?= $order['current_stage'] ?>">
             <div class="file-drop-area"><input type="file" name="file" required><span class="file-msg">Choose file...</span></div>
             <button type="submit" class="btn btn--primary btn--sm btn--block">Upload File</button>
         </form>
+
         <form action="/plvsystem/order/requestReview" method="POST" style="margin-top:10px;">
             <input type="hidden" name="assignment_id" value="<?= $assignment['id'] ?>">
             <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
-            <button class="btn btn--success btn--block"><i class="fa-solid fa-paper-plane"></i> Submit for Review</button>
+            <button type="submit" class="btn btn--success btn--block">
+                <i class="fa-solid fa-check-double"></i> Complete Task & Forward
+            </button>
         </form>
 
     <?php elseif(!empty($assignment) && $assignment['user_id'] == $_SESSION['user_id'] && $assignment['status'] == 'review'): ?>
@@ -257,6 +273,26 @@ function renderProDescription($text) {
             <p>Waiting for Admin approval.</p>
         </div>
 
+    <?php elseif($canClaim): ?>
+        <div class="state-box" style="background: #f0fdf4; border: 1px solid #bbf7d0;">
+            <div class="state-box__icon" style="background: #dcfce7; color: #16a34a;">
+                <i class="fa-solid fa-hand-sparkles"></i>
+            </div>
+            <h3 style="color: #166534;">Available Task</h3>
+            <p class="text-xs" style="color: #15803d; margin-bottom: 15px;">
+                This order is waiting for a <?= ucfirst($role) ?>. Grab it to start working!
+            </p>
+            
+            <form action="/plvsystem/order/claim" method="POST">
+                <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+                <input type="hidden" name="stage" value="<?= $order['current_stage'] == 'created' ? 'design' : $order['current_stage'] ?>">
+                
+                <button type="submit" class="btn btn--success btn--block" style="padding: 12px; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(22, 163, 74, 0.2);">
+                    <i class="fa-solid fa-hand-holding-hand"></i> Claim This Task
+                </button>
+            </form>
+        </div>
+        
     <?php else: ?>
         <div class="state-box state-box--neutral">
             <div class="state-box__icon"><i class="fa-solid fa-hourglass-half"></i></div>
@@ -268,32 +304,10 @@ function renderProDescription($text) {
         </div>
     <?php endif; ?>
 
-</div>
-            </div>
-
-            <div class="card margin-top-md">
-                <div class="card__header">
-                    <h3><i class="fa-solid fa-folder-open"></i> Project Files</h3>
-                </div>
-                <div class="card__body">
-                    <?php if(empty($files)): ?>
-                        <p class="text-muted text-italic">No files uploaded yet.</p>
-                    <?php else: ?>
-                        <ul class="file-list">
-                            <?php foreach($files as $f): ?>
-                            <li class="file-item">
-                                <div class="file-item__icon"><i class="fa-solid fa-file-pdf"></i></div>
-                                <div class="file-item__details">
-                                    <a href="/plvsystem/<?= $f['file_path'] ?>" target="_blank" class="file-link">Download File</a>
-                                    <div class="file-meta"><?= ucfirst($f['stage']) ?> • <?= $f['uploader'] ?></div>
-                                </div>
-                            </li>
-                            <?php endforeach; ?>
-                        </ul>
-                    <?php endif; ?>
                 </div>
             </div>
-            <div class="card" style="display:flex; flex-direction:column; height:500px; padding:0; overflow:hidden;">
+            
+            <div class="card" style="display:flex; flex-direction:column; height:500px; padding:0; overflow:hidden; margin-top:20px;">
             <div style="background:#f8fafc; padding:15px; border-bottom:1px solid var(--border); font-weight:600; color:var(--dark);">
                 <i class="fa-regular fa-comments"></i> Project Discussion
             </div>
@@ -366,6 +380,29 @@ function renderProDescription($text) {
                 </form>
             </div>
         </div>
+
+            <div class="card margin-top-md">
+                <div class="card__header">
+                    <h3><i class="fa-solid fa-folder-open"></i> Project Files</h3>
+                </div>
+                <div class="card__body">
+                    <?php if(empty($files)): ?>
+                        <p class="text-muted text-italic">No files uploaded yet.</p>
+                    <?php else: ?>
+                        <ul class="file-list">
+                            <?php foreach($files as $f): ?>
+                            <li class="file-item">
+                                <div class="file-item__icon"><i class="fa-solid fa-file-pdf"></i></div>
+                                <div class="file-item__details">
+                                    <a href="/plvsystem/<?= $f['file_path'] ?>" target="_blank" class="file-link">Download File</a>
+                                    <div class="file-meta"><?= ucfirst($f['stage']) ?> • <?= $f['uploader'] ?></div>
+                                </div>
+                            </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                </div>
+            </div>
 
         </div>
     </div>
@@ -451,15 +488,12 @@ function openAssignModal(orderId, currentStage) {
         });
 }
 
-// --- AUTO-OPEN ASSIGN MODAL (Add this to make the popup work!) ---
+// --- AUTO-OPEN ASSIGN MODAL ---
 document.addEventListener("DOMContentLoaded", function() {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('assign_needed')) {
-        // Automatically open the modal for the CURRENT stage
-        // We ensure orderId is valid
         <?php if(isset($order['id']) && isset($order['current_stage'])): ?>
             openAssignModal(<?= $order['id'] ?>, '<?= $order['current_stage'] ?>');
-            // Clean URL
             window.history.replaceState(null, null, window.location.pathname);
         <?php endif; ?>
     }
@@ -474,35 +508,28 @@ document.addEventListener("DOMContentLoaded", function() {
     const chatBox = document.getElementById('chatBox');
     const chatSubmitBtn = document.getElementById('chatSubmitBtn');
 
-    // Auto-scroll chat to bottom on page load
     if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
 
-    // Show indicator when file is selected
     chatFileInput.addEventListener('change', function() {
         if (this.files.length > 0) fileIndicator.style.display = 'inline-block';
         else fileIndicator.style.display = 'none';
     });
 
-    // Handle "Enter" key press to send message
     chatInputText.addEventListener('keydown', function(e) {
-        // If Enter is pressed without Shift key
         if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault(); // Stop it from making a new line
+            e.preventDefault(); 
             
-            // Only submit if there is text OR a file attached
             if (this.value.trim() !== '' || chatFileInput.files.length > 0) {
                 chatForm.dispatchEvent(new Event('submit'));
             }
         }
     });
 
-    // Handle the AJAX Form Submission
     chatForm.addEventListener('submit', function(e) {
-        e.preventDefault(); // Stop page refresh
+        e.preventDefault(); 
 
         const formData = new FormData(chatForm);
         
-        // Disable inputs while sending
         chatInputText.disabled = true;
         chatSubmitBtn.disabled = true;
         chatSubmitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
@@ -514,7 +541,6 @@ document.addEventListener("DOMContentLoaded", function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // 1. Build the new message bubble HTML
                 let fileHTML = '';
                 if (data.file_path) {
                     const ext = data.file_path.split('.').pop().toLowerCase();
@@ -540,16 +566,13 @@ document.addEventListener("DOMContentLoaded", function() {
                     </div>
                 `;
 
-                // Remove the "No messages yet" placeholder if it exists
                 if (chatBox.innerHTML.includes('No messages yet')) {
                     chatBox.innerHTML = '';
                 }
 
-                // 2. Append to chat box and scroll to bottom
                 chatBox.insertAdjacentHTML('beforeend', msgHTML);
                 chatBox.scrollTop = chatBox.scrollHeight;
 
-                // 3. Reset form
                 chatForm.reset();
                 chatInputText.style.height = ''; 
                 fileIndicator.style.display = 'none';
@@ -560,7 +583,6 @@ document.addEventListener("DOMContentLoaded", function() {
             alert("Failed to send message. Please try again.");
         })
         .finally(() => {
-            // Re-enable inputs
             chatInputText.disabled = false;
             chatSubmitBtn.disabled = false;
             chatSubmitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
@@ -569,4 +591,5 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 });
 </script>
+
 <?php include 'views/layouts/footer.php'; ?>

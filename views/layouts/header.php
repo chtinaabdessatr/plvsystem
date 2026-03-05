@@ -14,6 +14,7 @@ if(isset($_SESSION['user_id'])) {
     $notif_count = count($my_notifs);
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -32,8 +33,9 @@ if(isset($_SESSION['user_id'])) {
     <div class="app-wrapper">
         
         <aside class="sidebar">
-            <div class="sidebar__brand">
-                <i class="fa-solid fa-layer-group"></i> LAP PLV
+            <div class="sidebar__brand" style="justify-content: space-between;">
+                <div><i class="fa-solid fa-layer-group"></i> LAP PLV</div>
+                <i class="fa-solid fa-xmark" id="sidebar-close" style="cursor:pointer; display:none;"></i>
             </div>
             
             <nav class="sidebar__nav">
@@ -46,11 +48,11 @@ if(isset($_SESSION['user_id'])) {
                     </li>
                     
                     <?php if($_SESSION['role'] == 'admin' || $_SESSION['role'] == 'commercial'): ?>
-                    <li class="nav-divider">Menu</li>
+                    <li class="nav-divider"></li>
                     <li>
                         <a href="/plvsystem/order/create" class="<?= strpos($current_url, 'order/create') !== false ? 'active' : '' ?>">
                             <i class="fa-solid fa-circle-plus"></i>
-                            <span>New Order</span>
+                            <span>Nouvelle Commande</span>
                         </a>
                     </li>
                     <?php endif; ?>
@@ -59,7 +61,7 @@ if(isset($_SESSION['user_id'])) {
                     <li>
                         <a href="/plvsystem/user/index" class="<?= strpos($current_url, 'user') !== false ? 'active' : '' ?>">
                             <i class="fa-solid fa-users"></i>
-                            <span>Manage Users</span>
+                            <span>Gérer les utilisateurs</span>
                         </a>
                     </li>
                     <?php endif; ?>
@@ -67,7 +69,7 @@ if(isset($_SESSION['user_id'])) {
                     <li>
                         <a href="/plvsystem/order/recent" class="<?= strpos($current_url, 'order/recent') !== false ? 'active' : '' ?>">
                             <i class="fa-solid fa-folder-clock"></i>
-                            <span>Recent Files</span>
+                            <span>Fichiers récents</span>
                         </a>
                     </li>
                 </ul>
@@ -82,7 +84,11 @@ if(isset($_SESSION['user_id'])) {
             
             <header class="navbar">
                 <div class="navbar__left">
-                   <h2 class="navbar__title">Production Overview</h2>
+                    <button id="sidebar-toggle" class="btn btn--secondary btn--sm" style="margin-right: 12px; display: none;">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+    
+                    <h2 class="navbar__title">Aperçu de la production</h2>
                 </div>
 
                 <div class="navbar__right">
@@ -118,7 +124,7 @@ if(isset($_SESSION['user_id'])) {
 
 <script>
 document.addEventListener("DOMContentLoaded", function() {
-    // Only run if user is logged in (badge exists)
+    // --- Notification Logic ---
     const badge = document.getElementById('nav-notif-badge');
     const bellIcon = document.querySelector('.fa-bell');
     
@@ -128,20 +134,49 @@ document.addEventListener("DOMContentLoaded", function() {
                 .then(response => response.json())
                 .then(data => {
                     if(data.count > 0) {
-                        // Update text
                         badge.innerText = data.count;
-                        // Show badge
                         badge.style.display = 'flex';
-                        // Add shake animation
                         bellIcon.classList.add('fa-shake');
                     } else {
-                        // Hide badge if 0
                         badge.style.display = 'none';
                         bellIcon.classList.remove('fa-shake');
                     }
                 })
                 .catch(err => console.error('Notif check failed', err));
-        }, 5000); // Checks every 5 seconds
+        }, 5000); 
+    }
+    
+    // --- Mobile Sidebar Logic ---
+    const sidebar = document.querySelector('.sidebar');
+    const toggleBtn = document.getElementById('sidebar-toggle');
+    const closeBtn = document.getElementById('sidebar-close');
+
+    if (toggleBtn && sidebar) {
+        // Show the toggle button only on smaller screens
+        if (window.innerWidth <= 1024) {
+            toggleBtn.style.display = 'inline-flex';
+        }
+
+        // Open Sidebar
+        toggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); 
+            sidebar.classList.toggle('active');
+        });
+
+        // Close Sidebar via X button
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                sidebar.classList.remove('active');
+            });
+        }
+
+        // Close sidebar when clicking outside of it on mobile
+        document.addEventListener('click', (e) => {
+            // Using .contains ensures clicking the icon inside the button doesn't trigger a close
+            if (sidebar.classList.contains('active') && !sidebar.contains(e.target) && !toggleBtn.contains(e.target)) {
+                sidebar.classList.remove('active');
+            }
+        });
     }
 });
 </script>

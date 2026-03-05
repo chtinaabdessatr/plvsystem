@@ -5,8 +5,8 @@
     <div class="page-header">
         <div class="page-header__content">
             <h1 class="page-header__title">
-                <span>Access Control</span>
-                User Management
+                <span>Contrôle d'accès</span>
+                Gestion des utilisateurs
             </h1>
         </div>
     </div>
@@ -15,24 +15,24 @@
         
         <div class="card card--padded" style="position: sticky; top: 20px;">
             <div class="card__header" style="margin: -24px -24px 24px -24px; padding: 16px 24px;">
-                <h3><i class="fa-solid fa-user-plus"></i> Add New User</h3>
+                <h3><i class="fa-solid fa-user-plus"></i> Ajouter un nouvel utilisateur</h3>
             </div>
             
             <form action="/plvsystem/user/create" method="POST">
                 <div class="form-group">
-                    <label class="form-label">Full Name</label>
+                    <label class="form-label">Nom complet</label>
                     <div class="input-group">
                         <input type="text" name="name" class="form-control" required placeholder="John Doe">
                     </div>
                 </div>
                 
                 <div class="form-group">
-                    <label class="form-label">Email Address</label>
+                    <label class="form-label">Address Email</label>
                     <input type="email" name="email" class="form-control" required placeholder="john@company.com">
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Role</label>
+                    <label class="form-label">Rôle</label>
                     <div class="radio-grid">
                         <label class="selection-card">
                             <input type="radio" name="role" value="admin" required>
@@ -43,52 +43,52 @@
                         <label class="selection-card">
                             <input type="radio" name="role" value="commercial" required>
                             <span class="card-content" style="padding: 10px;">
-                                <span class="card-title text-primary"><i class="fa-solid fa-briefcase"></i> Sales</span>
+                                <span class="card-title text-primary"><i class="fa-solid fa-briefcase"></i> Ventes</span>
                             </span>
                         </label>
                          <label class="selection-card">
                             <input type="radio" name="role" value="designer" required>
                             <span class="card-content" style="padding: 10px;">
-                                <span class="card-title" style="color:#8b5cf6"><i class="fa-solid fa-pen-ruler"></i> Design</span>
+                                <span class="card-title" style="color:#8b5cf6"><i class="fa-solid fa-pen-ruler"></i> Conception </span>
                             </span>
                         </label>
                         <label class="selection-card">
                             <input type="radio" name="role" value="printer" required>
                             <span class="card-content" style="padding: 10px;">
-                                <span class="card-title" style="color:#f59e0b"><i class="fa-solid fa-print"></i> Print</span>
+                                <span class="card-title" style="color:#f59e0b"><i class="fa-solid fa-print"></i> Imprimer</span>
                             </span>
                         </label>
                          <label class="selection-card">
                             <input type="radio" name="role" value="delivery" required>
                             <span class="card-content" style="padding: 10px;">
-                                <span class="card-title text-success"><i class="fa-solid fa-truck"></i> Ship</span>
+                                <span class="card-title text-success"><i class="fa-solid fa-truck"></i> Logistique</span>
                             </span>
                         </label>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Password</label>
+                    <label class="form-label">Mot de passe</label>
                     <input type="password" name="password" class="form-control" required placeholder="••••••••">
                 </div>
 
                 <button type="submit" class="btn btn--primary btn--block btn--lg margin-top-md">
-                    <i class="fa-solid fa-check"></i> Create Account
+                    <i class="fa-solid fa-check"></i> Créer un compte
                 </button>
             </form>
         </div>
 
         <div class="card">
             <div class="card__header">
-                <h3><i class="fa-solid fa-users"></i> System Users</h3>
+                <h3><i class="fa-solid fa-users"></i> Utilisateurs du système</h3>
             </div>
             <div class="card__body" style="padding: 0;">
                 <table class="table">
                     <thead>
                         <tr>
-                            <th>User</th>
-                            <th>Role</th>
-                            <th>Status</th>
+                            <th>Utilisateur</th>
+                            <th>Rôle</th>
+                            <th>Statut</th>
                             <th style="text-align: right;">Action</th>
                         </tr>
                     </thead>

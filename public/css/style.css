@@ -411,3 +411,95 @@ input:focus, select:focus, textarea:focus {
     font-size: 12px;
     padding: 8px 5px;
 }
+
+/* --- RESPONSIVE MEDIA QUERIES --- */
+
+/* For Tablets and Small Desktops (under 1024px) */
+@media (max-width: 1024px) {
+    .sidebar {
+        width: 80px; /* Collapse sidebar to icons/minimal */
+        overflow: hidden;
+    }
+    
+    .sidebar-header, .nav-links li a span {
+        display: none; /* Hide text, keep icons if you have them */
+    }
+
+    .main-content-wrapper {
+        margin-left: 80px;
+    }
+    
+    .grid-2-col {
+        grid-template-columns: 1fr; /* Stack form columns */
+    }
+}
+
+/* For Mobile Devices (under 768px) */
+@media (max-width: 768px) {
+    .dashboard-container {
+        flex-direction: column; /* Stack sidebar on top or hide it */
+    }
+
+    .sidebar {
+        position: relative; /* Stop floating over content */
+        width: 100%;
+        height: auto;
+        padding: 10px 0;
+    }
+
+    .sidebar-header {
+        display: block;
+        text-align: center;
+        border-bottom: none;
+    }
+
+    .nav-links {
+        display: flex;
+        justify-content: center;
+        margin-top: 10px;
+    }
+
+    .nav-links li a {
+        padding: 10px 15px;
+    }
+
+    .main-content-wrapper {
+        margin-left: 0; /* Remove the gap */
+    }
+
+    .page-content {
+        padding: 15px;
+    }
+
+    .kpi-grid {
+        grid-template-columns: 1fr 1fr; /* 2 columns on mobile */
+    }
+
+    /* Make Tables Scrollable Horizontally */
+    .card {
+        overflow-x: auto;
+    }
+
+    table {
+        min-width: 600px; /* Prevents table squishing */
+    }
+
+    .top-bar {
+        padding: 10px 15px;
+    }
+}
+
+/* For Very Small Phones (under 480px) */
+@media (max-width: 480px) {
+    .kpi-grid {
+        grid-template-columns: 1fr; /* 1 column for KPIs */
+    }
+
+    .radio-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .form-header-pro {
+        padding: 20px;
+    }
+}
