@@ -1,0 +1,13 @@
+{
+    "dashboard": "Tableau de bord",
+    "overview": "Présentation",
+    "new_order": "Nouvelle commande",
+    "search": "Rechercher (Client, ID)...",
+    "total_orders": "Total Commandes",
+    "in_progress": "En cours",
+    "completed": "Terminé",
+    "available_tasks": "Missions disponibles",
+    "action": "Action",
+    "logout": "Déconnexion",
+    "Search result for": "Résultats de recherche pour"
+}
