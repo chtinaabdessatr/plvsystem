@@ -8,14 +8,15 @@ class Order {
 
     // 1. CREATE ORDER
     public function create($data) {
-        // Added 'status' to the INSERT to ensure order appears as 'active' immediately
-        $sql = "INSERT INTO orders (client_name, commercial_name, zone, plv_type, description, deadline, priority, created_by, current_stage, status) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'created', 'active')";
+        // 🔴 FIX: Added the 9th '?' to exactly match the 9 variables we pass in execute()
+        $sql = "INSERT INTO orders (client_name, client_contact, commercial_name, zone, plv_type, description, deadline, priority, created_by, current_stage, status) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'created', 'active')";
         
         $stmt = $this->conn->prepare($sql);
         
         if($stmt->execute([
             $data['client'], 
+            $data['client_contact'],
             $data['commercial'], 
             $data['zone'], 
             $data['type'], 
@@ -183,9 +184,17 @@ class Order {
     }
 
     public function update($id, $data) {
-        $sql = "UPDATE orders SET client_name = ?, plv_type = ?, description = ?, deadline = ?, priority = ? WHERE id = ?";
+        $sql = "UPDATE orders SET client_name = ?, client_contact = ?, plv_type = ?, description = ?, deadline = ?, priority = ? WHERE id = ?";
         $stmt = $this->conn->prepare($sql);
-        return $stmt->execute([$data['client'], $data['type'], $data['desc'], $data['deadline'], $data['priority'], $id]);
+        return $stmt->execute([
+            $data['client'], 
+            $data['client_contact'], 
+            $data['type'], 
+            $data['desc'], 
+            $data['deadline'], 
+            $data['priority'], 
+            $id
+        ]);
     }
 
     // Add to models/Order.php
