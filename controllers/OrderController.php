@@ -7,6 +7,7 @@ require_once 'models/Order.php';
 require_once 'models/User.php';
 require_once 'models/Notification.php';
 require_once 'models/Log.php'; // 🕵️‍♂️ ENTERPRISE LOGGING ADDED
+require_once 'utils/Mailer.php'; // 📧 Add this at the very top with the other requires
 
 class OrderController {
     private $orderModel;
@@ -57,6 +58,7 @@ class OrderController {
             // 3. Prepare Data
             $data = [
                 'client' => $_POST['client_name'],
+                'client_contact' => $_POST['client_contact'] ?? '',
                 'commercial' => $_POST['commercial_name'],
                 'zone' => $_POST['zone'],
                 'type' => $_POST['plv_type'],
@@ -164,6 +166,16 @@ class OrderController {
                 $this->notifModel->create($user_id, "👉 Nouvelle tâche assignée: Commande #$order_id", "/plvsystem/order/view/$order_id");
             }
 
+            // 📧 EMAIL: Tell the worker they have a new task
+            $mailer = new Mailer();
+            $mailer->send(
+                $worker['email'], 
+                "Nouvelle tâche assignée : Commande #$order_id", 
+                "<h3>Bonjour {$worker['name']},</h3>
+                 <p>L'administrateur vous a assigné la commande <strong>#$order_id</strong> pour l'étape : <strong>" . strtoupper($newStage) . "</strong>.</p>
+                 <p>Veuillez vous connecter au système pour l'accepter ou la refuser.</p>"
+            );
+
             header("Location: /plvsystem/dashboard");
             exit;
         }
@@ -191,6 +203,16 @@ class OrderController {
             $msg = "✅ $workerName accepted Order #$orderId.";
             $this->notifModel->create($adminId, $msg, "/plvsystem/order/view/$orderId");
         }
+
+        // 📧 EMAIL: Tell the Admin the worker accepted
+        $adminUser = $this->userModel->findById($adminId);
+        $mailer = new Mailer();
+        $mailer->send(
+            $adminUser['email'], 
+            "Tâche Acceptée : Commande #$orderId", 
+            "<h3>Bonjour,</h3>
+             <p>L'utilisateur <strong>$workerName</strong> a officiellement accepté de travailler sur la commande <strong>#$orderId</strong>.</p>"
+        );
 
         header("Location: /plvsystem/order/view/" . $orderId);
     }
@@ -296,10 +318,23 @@ class OrderController {
 
         $this->notifModel->create($_POST['worker_id'], "✅ Work Approved!", "/plvsystem/order/view/$order_id");
 
-        if ($next_stage != 'completed') {
-            header("Location: /plvsystem/order/view/" . $order_id . "?assign_needed=1");
-        } else {
+        // 📧 EMAIL: IF TERMINATED/COMPLETED (This is what was missing!)
+        if ($next_stage == 'completed') {
+            $admin = $this->userModel->findById($order['created_by']);
+            $worker = $this->userModel->findById($_POST['worker_id']);
+            $mailer = new Mailer();
+            
+            $htmlBody = "<h3>🎉 Commande Terminée !</h3>
+                         <p>La commande <strong>#$order_id</strong> a passé toutes les étapes de production avec succès et est maintenant marquée comme <strong>TERMINÉE</strong>.</p>";
+            
+            // Email Admin
+            $mailer->send($admin['email'], "Commande #$order_id Terminée", $htmlBody);
+            // Email the final worker
+            $mailer->send($worker['email'], "Commande #$order_id Terminée", $htmlBody);
+            
             header("Location: /plvsystem/order/view/" . $order_id);
+        } else {
+            header("Location: /plvsystem/order/view/" . $order_id . "?assign_needed=1");
         }
         exit;
     }
@@ -310,6 +345,7 @@ class OrderController {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $data = [
                 'client' => $_POST['client_name'],
+                'client_contact' => $_POST['client_contact'] ?? '',
                 'type' => $_POST['plv_type'],
                 'desc' => $_POST['description'],
                 'deadline' => $_POST['deadline'],
@@ -467,6 +503,16 @@ class OrderController {
                 if(isset($this->notifModel)) {
                     $this->notifModel->create($order['created_by'], "🖐️ La commande #$orderId a été récupérée par $workerName", "/plvsystem/order/view/$orderId");
                 }
+
+                // 📧 EMAIL: Tell the Admin who grabbed the task
+                $admin = $this->userModel->findById($order['created_by']);
+                $mailer = new Mailer();
+                $mailer->send(
+                    $admin['email'], 
+                    "Tâche récupérée : Commande #$orderId", 
+                    "<h3>Bonjour,</h3>
+                     <p>L'utilisateur <strong>$workerName</strong> vient de récupérer la commande <strong>#$orderId</strong> pour l'étape : <strong>$newStage</strong>.</p>"
+                );
                 
                 header("Location: /plvsystem/order/view/" . $orderId);
             } else {
