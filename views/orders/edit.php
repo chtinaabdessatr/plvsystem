@@ -22,6 +22,10 @@
                     <label class="form-label">Client / Propriété</label>
                     <input type="text" name="client_name" class="form-control" value="<?= htmlspecialchars($order['client_name']) ?>" required>
                 </div>
+                <div class="form-group">
+                    <label class="form-label">Contact du client (Optionnel)</label>
+                    <input type="text" name="client_contact" class="form-control" value="<?= htmlspecialchars($order['client_contact'] ?? '') ?>" placeholder="Numéro de téléphone ou Email...">
+                </div>
                 
                 <div class="form-group">
                     <label class="form-label">Deadline (Échéance)</label>

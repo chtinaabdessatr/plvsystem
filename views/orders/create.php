@@ -27,6 +27,10 @@ error_reporting(E_ALL);?>
                     <label class="form-label">Nom de Propriété (Client)</label>
                     <input type="text" name="client_name" class="form-control" placeholder="Ex: Marjane, Pharmacie..." required>
                 </div>
+                <div class="form-group">
+                    <label class="form-label">Contact du client (Optionnel)</label>
+                    <input type="text" name="client_contact" class="form-control" placeholder="Numéro de téléphone ou Email...">
+                </div>
             </div>
 
             <div class="form-group margin-top-md">
